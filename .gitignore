@@ -1,0 +1,50 @@
+# CMake生成ファイル
+/build/
+/out/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Visual Studio生成ファイル
+.vs/
+x64/
+Debug/
+Release/
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.db
+*.opendb
+
+# 実行ファイル
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# オブジェクトファイル
+*.obj
+*.o
+
+# ログファイル
+*.log
+*.log.bak
+
+# Windows サムネイル
+Thumbs.db
+ehthumbs.db
+
+# Visual Studio Code
+.vscode/
+
+# JetBrains IDEs
+.idea/
+
+# 一時ファイル
+*.tmp
+*.temp
+*~

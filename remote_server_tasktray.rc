@@ -1,0 +1,36 @@
+#include "Resource.h"
+#include <windows.h>
+
+// バージョン情報
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041104B0"
+        BEGIN
+            VALUE "CompanyName", "Your Company"
+            VALUE "FileDescription", "Remote Server Task Tray Application"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "remote_server_tasktray"
+            VALUE "LegalCopyright", "Copyright (C) 2025"
+            VALUE "OriginalFilename", "remote_server_tasktray.exe"
+            VALUE "ProductName", "Remote Server Task Tray"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x411, 1200
+    END
+END
