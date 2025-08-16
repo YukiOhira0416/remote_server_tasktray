@@ -1,79 +1,68 @@
-# Remote Server TaskTray
+# Remote Server TaskTray (English)
 
-Windows用のタスクトレイアプリケーションで、GPU情報を管理し、ハードウェアエンコーディングをサポートします。
+## Overview
+Remote Server TaskTray is a Windows task tray application that manages GPU information and supports hardware encoding. It runs in the background and provides GPU status and encoding capability information via the system tray.
 
-## 必要な環境
-
+## Requirements
 - Windows 10/11
-- CMake 3.16以上
-- Visual Studio 2019以上またはMinGW-w64
-- DirectX SDK（Windows SDKに含まれる）
+- CMake 3.16 or later
+- Visual Studio 2019 or later (with Desktop development with C++ workload) or MinGW-w64
+- Windows SDK (DirectX SDK is included)
 
-## CMakeでのビルド方法
+## How to Build with CMake
 
-### 1. ビルドディレクトリの作成
-
+### 1. Create Build Directory
 ```powershell
 mkdir build
 cd build
 ```
 
-### 2. CMakeの設定
-
-#### Visual Studio使用の場合:
+### 2. Configure CMake
+#### For Visual Studio:
 ```powershell
-cmake .. -G "Visual Studio 17 2022" -A x64
+cmake -G "Visual Studio 17 2022" -A x64 ..
+```
+#### For MinGW:
+```powershell
+cmake -G "MinGW Makefiles" ..
 ```
 
-#### MinGW使用の場合:
-```powershell
-cmake .. -G "MinGW Makefiles"
-```
-
-### 3. ビルド実行
-
-#### Debugビルド:
+### 3. Build
+#### Debug build:
 ```powershell
 cmake --build . --config Debug
 ```
-
-#### Releaseビルド:
+#### Release build:
 ```powershell
 cmake --build . --config Release
 ```
 
-### 4. 実行ファイルの場所
+### 4. Executable Location
+After building, the executable will be generated at:
+- Debug: `build/Debug/remote_server_tasktray.exe`
+- Release: `build/Release/remote_server_tasktray.exe`
 
-ビルド完了後、実行ファイルは以下の場所に生成されます：
-- Debug版: `build/Debug/remote_server_tasktray.exe`
-- Release版: `build/Release/remote_server_tasktray.exe`
+## Project Structure
+- **remote_server_tasktray.cpp**: Main entry point
+- **TaskTrayApp.cpp / .h**: Manages the task tray application
+- **GPUManager.cpp / .h**: Retrieves GPU information and checks hardware encoding support
+- **RegistryHelper.cpp / .h**: Handles Windows registry operations
+- **SharedMemoryHelper.cpp / .h**: Manages shared memory operations
+- **DebugLog.cpp / .h**: Outputs debug logs
+- **DisplayManager.cpp / .h**: Manages display information
+- **Globals.cpp / .h**: Global variables and settings
+- **StringConversion.cpp / .h**: String encoding conversion utilities
+- **Utility.cpp / .h**: Utility functions
 
-## 従来のVisual Studioでのビルド方法
+## Features
+- Detects GPUs installed in the system
+- Checks hardware encoding support (e.g., NVENC)
+- Saves GPU information to the registry and shared memory
+- Runs as a resident application in the Windows task tray
+- Outputs debug logs for troubleshooting
 
-従来通りVisual Studioを使用する場合：
-
-1. `remote_server_tasktray.sln` をVisual Studioで開く
-2. ビルド設定を選択（Debug/Release, x64）
-3. ビルド → ソリューションのビルド
-
-## プロジェクト構成
-
-- **remote_server_tasktray.cpp**: メインエントリーポイント
-- **TaskTrayApp**: タスクトレイアプリケーションの管理
-- **GPUManager**: GPU情報の取得とハードウェアエンコーディング対応チェック
-- **RegistryHelper**: レジストリ操作
-- **SharedMemoryHelper**: 共有メモリ操作
-- **DebugLog**: デバッグログ出力
-
-## 機能
-
-- システムに搭載されたGPUの検出
-- ハードウェアエンコーディング対応チェック
-- GPU情報のレジストリと共有メモリへの保存
-- タスクトレイでの常駐動作
-
-## 依存ライブラリ
-
+## Dependencies
 - DXGI (DirectX Graphics Infrastructure)
 - Direct3D 11
-- Windows API (User32, Kernel32, Advapi32 など)
+- Windows API (User32, Kernel32, Advapi32, Shell32, Ole32, OleAut32, Gdi32, Winspool, Comdlg32, Uuid, Odbc32, Odbccp32, etc.)
+- C++17 Standard Library
