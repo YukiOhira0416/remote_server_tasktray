@@ -294,6 +294,32 @@ void SharedMemoryHelper::SignalEvent(const std::string& name) {
     }
 }
 
+bool SharedMemoryHelper::WriteDisplayList(const std::vector<std::string>& serials) {
+    // Write DISP_INFO_0..N so that index 0 is primary.
+    for (size_t i = 0; i < serials.size(); ++i) {
+        std::string key = "DISP_INFO_" + std::to_string(i);
+        if (!WriteSharedMemory(key, serials[i])) {
+            DebugLog("WriteDisplayList: Failed at key " + key);
+            return false;
+        }
+    }
+    // Optional: clear the next slot to mark the end (helps the reader stop)
+    std::string terminatorKey = "DISP_INFO_" + std::to_string(serials.size());
+    WriteSharedMemory(terminatorKey, std::string()); // empty
+    return true;
+}
+
+std::vector<std::string> SharedMemoryHelper::ReadDisplayList() {
+    std::vector<std::string> out;
+    for (size_t i = 0; /*break inside*/; ++i) {
+        std::string key = "DISP_INFO_" + std::to_string(i);
+        std::string v = ReadSharedMemory(key);
+        if (v.empty()) break; // contiguous sequence terminates on empty
+        out.push_back(v);
+    }
+    return out;
+}
+
 bool SharedMemoryHelper::DeleteSharedMemory() {
     CloseHandle(hMapFile_WriteSharedMemory);
     hMapFile_WriteSharedMemory = nullptr;

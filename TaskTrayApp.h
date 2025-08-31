@@ -10,13 +10,13 @@
 
 class TaskTrayApp {
 public:
-    TaskTrayApp(HINSTANCE hInstance);
+    explicit TaskTrayApp(HINSTANCE hInstance);
     bool Initialize();
     int Run();
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     void CreateTrayIcon();
     void ShowContextMenu();
-    void UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string> displays);
+    void UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string>& /*displays*/);
     void SelectDisplay(int displayIndex);
     void MonitorDisplayChanges();
     void RefreshDisplayList();
@@ -24,6 +24,8 @@ public:
 
 
 private:
+    UINT uTaskbarCreatedMsg = 0;
+    void RecreateTrayIcon();
     HINSTANCE hInstance;
     HWND hwnd;
     NOTIFYICONDATA nid;
