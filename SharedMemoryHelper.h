@@ -13,6 +13,7 @@ public:
     bool WriteSharedMemory(const std::string& name, const std::string& data);
     std::string ReadSharedMemory(const std::string& name);
     void SignalEvent(const std::string& name);
+    bool TryReadSharedMemoryNoWait(const std::string& name, std::string& out);
     bool DeleteSharedMemory(); // メソッドの宣言を追加
     bool DeleteEvent();
 

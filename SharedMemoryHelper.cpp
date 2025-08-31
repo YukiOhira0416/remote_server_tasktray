@@ -251,6 +251,47 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
     return data;
 }
 
+bool SharedMemoryHelper::TryReadSharedMemoryNoWait(const std::string& name, std::string& out) {
+    // NOTE: Non-blocking path for UI thread. Do NOT wait on events here.
+    std::wstring mutexName = L"Local\\Mutex_" + ConvertStringToWString(name);
+    HANDLE hMutex = CreateMutexW(NULL, FALSE, mutexName.c_str());
+    if (hMutex == NULL) {
+        DebugLog("TryReadSharedMemoryNoWait: CreateMutexW failed with error: " + std::to_string(GetLastError()));
+        return false;
+    }
+
+    // Small timeout to avoid UI stalls.
+    DWORD wait = WaitForSingleObject(hMutex, 20); // 20ms max
+    if (wait != WAIT_OBJECT_0) {
+        DebugLog("TryReadSharedMemoryNoWait: Mutex not acquired quickly (wait=" + std::to_string(wait) + ").");
+        CloseHandle(hMutex);
+        return false;
+    }
+
+    bool ok = false;
+    std::wstring sharedMemoryName = L"Local\\" + ConvertStringToWString(name);
+    HANDLE hMapFile = OpenFileMappingW(FILE_MAP_READ, FALSE, sharedMemoryName.c_str());
+    if (hMapFile != NULL) {
+        LPVOID pBuf = MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, SHARED_MEMORY_SIZE);
+        if (pBuf != NULL) {
+            const char* p = static_cast<const char*>(pBuf);
+            out.assign(p, strnlen(p, SHARED_MEMORY_SIZE));
+            UnmapViewOfFile(pBuf);
+            ok = !out.empty();
+        } else {
+            DebugLog("TryReadSharedMemoryNoWait: MapViewOfFile failed with error: " + std::to_string(GetLastError()));
+        }
+        CloseHandle(hMapFile);
+    } else {
+        // Mapping may not exist yet; this is okay for UI path.
+        DebugLog("TryReadSharedMemoryNoWait: OpenFileMappingW returned NULL (not created yet).");
+    }
+
+    ReleaseMutex(hMutex);
+    CloseHandle(hMutex);
+    return ok;
+}
+
 void SharedMemoryHelper::SignalEvent(const std::string& name) {
     std::wstring wEventName = L"Local\\" + ConvertStringToWString(name) + L"_Event";
 
