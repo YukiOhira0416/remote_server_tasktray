@@ -8,6 +8,7 @@ struct DisplayInfo {
     std::string name;
     std::string serialNumber;
     bool isPrimary = false;
+    int portIndex = -1; // Add portIndex for sorting
 
 };
 
