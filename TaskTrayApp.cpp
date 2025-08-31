@@ -319,6 +319,16 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
             DebugLog("WindowProc: WM_SETTINGCHANGE - Recreating tray icon.");
             app->RecreateTrayIcon();
             break;
+
+    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    // NEW: Handle top-level WM_CONTEXTMENU from NOTIFYICON_VERSION_4 shells
+    case WM_CONTEXTMENU:
+        DebugLog("WindowProc: WM_CONTEXTMENU - Tray icon context request received.");
+        if (app) {
+            app->ShowContextMenu();
+        }
+        return 0; // Eat it; we handled showing the popup
+    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         case WM_USER + 1:
             if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU) {
                 DebugLog("WindowProc: Tray icon context request received.");
