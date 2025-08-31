@@ -26,6 +26,11 @@
 #include <regex>
 
 
+// file-static globals to pass context menu coords safely
+static POINT s_lastContextPt = { 0, 0 };
+static bool  s_hasContextPt  = false;
+
+
 // Use an app-range message for tray callbacks per MS docs.
 #ifndef WM_TRAYICON
 constexpr UINT WM_TRAYICON = WM_APP + 1;
@@ -66,6 +71,13 @@ static POINT MenuPointFromIconRect(const RECT& rc) {
 // Helper: robustly obtain a popup point for the tray menu.
 // Order: icon rect -> WM/queue coords -> cursor.
 static bool GetRobustTrayMenuPoint(HWND hWnd, UINT uID, POINT& pt) {
+    // NEW: if we have a saved context point from WM_CONTEXTMENU, use it once
+    if (s_hasContextPt) {
+        pt = s_lastContextPt;
+        s_hasContextPt = false; // consume
+        return true;
+    }
+
     RECT rc;
     if (GetTrayIconRect(hWnd, uID, rc)) {
         pt = MenuPointFromIconRect(rc);
@@ -85,7 +97,10 @@ static bool GetRobustTrayMenuPoint(HWND hWnd, UINT uID, POINT& pt) {
     if (GetCursorPos(&pt)) {
         return true;
     }
-    return false;
+
+    // CHANGE: do not return false; set a sane default and return true
+    pt.x = 0; pt.y = 0;
+    return true;
 }
 
 TaskTrayApp::TaskTrayApp(HINSTANCE hInst) : hInstance(hInst), hwnd(NULL), running(true) {
@@ -225,20 +240,20 @@ void TaskTrayApp::ShowContextMenu() {
         return;
     }
 
+    bool needInfoMessage = false; // NEW
+
     try {
         if (DisplaysList.empty()) {
             DebugLog("Error: Display information is not available.");
-            MessageBox(hwnd, _T("ディスプレイ情報が取得されていません。"), _T("エラー"), MB_OK | MB_ICONERROR);
-            // *** DO NOT return here. Proceed to create a minimal menu. ***
+            // CHANGE: mark to show message later; do not show it here
+            needInfoMessage = true;
         }
 
         // >>> Robust tray menu placement (multi-monitor & DPI aware)
         POINT pt = { 0, 0 };
         bool havePoint = GetRobustTrayMenuPoint(hwnd, /*uID*/ 1, pt);
-        if (!havePoint) {
-            DebugLog("Error: Failed to determine popup point. Aborting context menu.");
-            return;
-        }
+        // CHANGE: never abort; rely on GetRobustTrayMenuPoint's new guarantees
+        // if (!havePoint) { DebugLog("Error: Failed to determine popup point. Aborting context menu."); return; }
         DebugLog("Popup anchor computed.");
         // <<<
 
@@ -287,10 +302,15 @@ void TaskTrayApp::ShowContextMenu() {
         DebugLog("Popup menu tracked.");
 
         // Recommended by Microsoft so the menu reliably dismisses/focuses
-        PostMessage(hwnd, WM_NULL, 0, 0);
+        SendMessage(hwnd, WM_NULL, 0, 0);
 
         DestroyMenu(hMenu);
         DebugLog("Popup menu destroyed.");
+
+        // NEW: defer the message box until after the popup is closed
+        if (needInfoMessage) {
+            MessageBox(hwnd, _T("ディスプレイ情報が取得されていません。"), _T("エラー"), MB_OK | MB_ICONERROR);
+        }
     }
     catch (const std::exception& e) {
         DebugLog(std::string("Exception: ") + e.what());
@@ -394,6 +414,12 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
     // NEW: Handle top-level WM_CONTEXTMENU from NOTIFYICON_VERSION_4 shells
     case WM_CONTEXTMENU:
         DebugLog("WindowProc: WM_CONTEXTMENU - Tray icon context request received.");
+        // NEW: record coordinates if provided (lParam != -1)
+        if ((int)lParam != -1) {
+            s_lastContextPt.x = GET_X_LPARAM(lParam);
+            s_lastContextPt.y = GET_Y_LPARAM(lParam);
+            s_hasContextPt = true;
+        }
         if (app) {
             app->ShowContextMenu();
         }
