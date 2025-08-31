@@ -14,6 +14,7 @@
 #include <CommCtrl.h>
 #include "DebugLog.h"
 #include "Globals.h"
+#include "Utility.h"
 #include <fstream>
 #include <ctime>
 #include <iomanip>
