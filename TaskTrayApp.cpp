@@ -26,6 +26,24 @@
 #include <regex>
 
 
+// Persistent identity for this tray icon (do not change once shipped)
+static const GUID kTrayGuid =
+{ 0x7b5f1f9e, 0x4a3a, 0x4d88, { 0x9a, 0x63, 0x72, 0x1a, 0x13, 0xb1, 0xa4, 0x5f } };
+
+// Posted message to defer first tray creation
+#ifndef WM_APP_CREATE_TRAY
+#define WM_APP_CREATE_TRAY (WM_APP + 33)
+#endif
+
+// Explorer (taskbar) readiness probe
+static bool IsExplorerTrayReady() {
+    HWND hShell = FindWindowW(L"Shell_TrayWnd", NULL);
+    if (!hShell) return false;
+    HWND hTray  = FindWindowExW(hShell, NULL, L"TrayNotifyWnd", NULL);
+    return (hTray != NULL);
+}
+
+
 // file-static globals to pass context menu coords safely
 static POINT s_lastContextPt = { 0, 0 };
 static bool  s_hasContextPt  = false;
@@ -197,6 +215,10 @@ bool TaskTrayApp::Initialize() {
         StartTrayRetryTimer(hwnd, 500);
     }
 
+    // Defer a second-chance creation after the message loop starts.
+    // The handler will only recreate if still not visible.
+    PostMessage(hwnd, WM_APP_CREATE_TRAY, 0, 0);
+
     // 初回ディスプレイ情報取得
     RefreshDisplayList();
 
@@ -220,11 +242,12 @@ void TaskTrayApp::RecreateTrayIcon() {
 
 void TaskTrayApp::CreateTrayIcon() {
     nid.cbSize = sizeof(NOTIFYICONDATA);
-    nid.hWnd = hwnd;
-    nid.uID = 1;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    nid.hWnd   = hwnd;
+    nid.uID    = 1;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID; // add NIF_GUID
     nid.uCallbackMessage = WM_TRAYICON;
     nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    nid.guidItem = kTrayGuid; // persistent identity
     lstrcpy(nid.szTip, _T("GPU & Display Manager"));
 
     if (!Shell_NotifyIcon(NIM_ADD, &nid)) {
@@ -232,7 +255,6 @@ void TaskTrayApp::CreateTrayIcon() {
         return;
     }
 
-    // Opt-in to modern behavior on Win10/11 so callbacks and coordinates work across monitors.
     nid.uVersion = NOTIFYICON_VERSION_4;
     if (!Shell_NotifyIcon(NIM_SETVERSION, &nid)) {
         DebugLog("CreateTrayIcon: NIM_SETVERSION failed.");
@@ -423,11 +445,37 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
         bool cleanupResult = false; // 初期化
         HMENU hMenu = NULL; // ここで hMenu を宣言
         switch (uMsg) {
+        case WM_APP_CREATE_TRAY:
+            DebugLog("WindowProc: WM_APP_CREATE_TRAY - deferred tray creation.");
+            if (IsExplorerTrayReady()) {
+                if (!IsTrayIconVisible(hwnd, /*uID*/ 1)) {
+                    if (app) app->RecreateTrayIcon();
+                    DebugLog("Deferred create executed (post-loop).");
+                } else {
+                    DebugLog("Deferred create skipped (icon already visible).");
+                }
+            } else {
+                DebugLog("Deferred create: Explorer not ready; scheduling retry.");
+                s_trayRetryCount = 0;
+                StartTrayRetryTimer(hwnd, 500);
+            }
+            return 0;
         case WM_TIMER:
             if (wParam == ID_TRAYICON_RETRY_TIMER) {
                 KillTimer(hwnd, ID_TRAYICON_RETRY_TIMER);
+
+                if (!IsExplorerTrayReady()) {
+                    if (s_trayRetryCount < TRAYICON_RETRY_MAX) {
+                        ++s_trayRetryCount;
+                        StartTrayRetryTimer(hwnd, 500);
+                        DebugLog("Retry: Explorer not ready yet. count=" + std::to_string(s_trayRetryCount));
+                    } else {
+                        DebugLog("Retry aborted: Explorer not ready after max attempts.");
+                    }
+                    return 0;
+                }
+
                 if (!IsTrayIconVisible(hwnd, /*uID*/ 1)) {
-                    // Retry by recreating once; if still not present, schedule another attempt.
                     if (app) app->RecreateTrayIcon();
                     if (!IsTrayIconVisible(hwnd, /*uID*/ 1) && s_trayRetryCount < TRAYICON_RETRY_MAX) {
                         ++s_trayRetryCount;
@@ -438,7 +486,7 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
                             ", retries=" + std::to_string(s_trayRetryCount) + ").");
                     }
                 } else {
-                    DebugLog("Tray icon already visible; stopping retries.");
+                    DebugLog("Tray icon visible; stopping retries.");
                 }
                 return 0;
             }
