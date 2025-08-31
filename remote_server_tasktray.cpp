@@ -8,6 +8,9 @@
 #include <algorithm>
 #include "GPUInfo.h"
 #include "DebugLog.h" // 追加
+#include <sstream>
+#include <regex>
+#include "StringConversion.h"
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow) {
 
@@ -28,8 +31,40 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     GPUInfo onlyGPU;
 
     // **レジストリと共有メモリの両方にgpuinfoが存在しない場合**
-    for (const auto& gpu : gpus) {
-        onlyGPU = gpu;
+    bool foundPrimaryAdapter = false;
+    DISPLAY_DEVICE dd;
+    ZeroMemory(&dd, sizeof(dd));
+    dd.cb = sizeof(dd);
+    for (DWORD i = 0; EnumDisplayDevices(NULL, i, &dd, 0); ++i) {
+        if ((dd.StateFlags & DISPLAY_DEVICE_ACTIVE) && (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE)) {
+            std::string deviceID = ConvertWStringToString(dd.DeviceID);
+            std::smatch m1, m2;
+            std::regex vendorRegex("VEN_([0-9A-Fa-f]+)");
+            std::regex deviceRegex("DEV_([0-9A-Fa-f]+)");
+            std::string venHex, devHex;
+            if (std::regex_search(deviceID, m1, vendorRegex) && m1.size() > 1) venHex = m1.str(1);
+            if (std::regex_search(deviceID, m2, deviceRegex) && m2.size() > 1) devHex = m2.str(1);
+            unsigned venDec = 0, devDec = 0;
+            std::stringstream ss;
+            ss << std::hex << venHex; ss >> venDec; ss.clear();
+            ss << std::hex << devHex; ss >> devDec;
+
+            for (const auto& gpu : gpus) {
+                if ((unsigned)std::stoi(gpu.vendorID) == venDec &&
+                    (unsigned)std::stoi(gpu.deviceID) == devDec) {
+                    onlyGPU = gpu;
+                    foundPrimaryAdapter = true;
+                    break;
+                }
+            }
+            if (foundPrimaryAdapter) break;
+        }
+    }
+
+    if (!foundPrimaryAdapter) {
+        for (const auto& gpu : gpus) {
+            onlyGPU = gpu;
+        }
     }
 
     SharedMemoryHelper sharedMemoryHelper(nullptr); // インスタンスを作成
