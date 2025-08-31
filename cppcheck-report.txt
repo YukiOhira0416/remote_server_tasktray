@@ -148,10 +148,205 @@ TaskTrayApp.h:13:27: note: Function 'TaskTrayApp' argument 1 names different: de
 TaskTrayApp.cpp:80:36: note: Function 'TaskTrayApp' argument 1 names different: declaration 'hInstance' definition 'hInst'.
 TaskTrayApp::TaskTrayApp(HINSTANCE hInst) : hInstance(hInst), hwnd(NULL), running(true) {
                                    ^
-TaskTrayApp.cpp:85:0: style: The function 'Initialize' is never used. [unusedFunction]
-bool TaskTrayApp::Initialize() {
+remote_server_tasktray.cpp:1:0: information: Include file: <windows.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+﻿#include <windows.h>
 ^
-TaskTrayApp.cpp:582:0: style: The function 'Run' is never used. [unusedFunction]
-int TaskTrayApp::Run() {
+remote_server_tasktray.cpp:6:0: information: Include file: <functional> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <functional>
+^
+remote_server_tasktray.cpp:7:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+remote_server_tasktray.cpp:8:0: information: Include file: <algorithm> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <algorithm>
+^
+TaskTrayApp.h:19:72: performance: Function parameter 'displays' should be passed by const reference. [passedByValue]
+    void UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string> displays);
+                                                                       ^
+remote_server_tasktray.cpp:32:17: style: Consider using std::accumulate algorithm instead of a raw loop. [useStlAlgorithm]
+        onlyGPU = gpu;
+                ^
+SharedMemoryHelper.cpp:3:0: information: Include file: <windows.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <windows.h>
+^
+SharedMemoryHelper.cpp:4:0: information: Include file: <functional> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <functional>
+^
+SharedMemoryHelper.cpp:5:0: information: Include file: <algorithm> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <algorithm>
+^
+SharedMemoryHelper.cpp:6:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+SharedMemoryHelper.cpp:7:0: information: Include file: <iostream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <iostream>
+^
+SharedMemoryHelper.cpp:8:0: information: Include file: <cstring> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <cstring>
+^
+SharedMemoryHelper.cpp:9:0: information: Include file: <sddl.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sddl.h>
+^
+SharedMemoryHelper.cpp:10:0: information: Include file: <tchar.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <tchar.h>
+^
+SharedMemoryHelper.cpp:11:0: information: Include file: <unordered_map> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <unordered_map>
+^
+SharedMemoryHelper.cpp:13:0: information: Include file: <mutex> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <mutex>
+^
+SharedMemoryHelper.h:14:17: performance: inconclusive: Technically the member function 'SharedMemoryHelper::ReadSharedMemory' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    std::string ReadSharedMemory(const std::string& name);
+                ^
+SharedMemoryHelper.cpp:168:33: note: Technically the member function 'SharedMemoryHelper::ReadSharedMemory' can be static (but you may consider moving to unnamed namespace).
+std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
+                                ^
+SharedMemoryHelper.h:14:17: note: Technically the member function 'SharedMemoryHelper::ReadSharedMemory' can be static (but you may consider moving to unnamed namespace).
+    std::string ReadSharedMemory(const std::string& name);
+                ^
+SharedMemoryHelper.h:16:10: performance: inconclusive: Technically the member function 'SharedMemoryHelper::DeleteSharedMemory' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    bool DeleteSharedMemory(); // メソッドの宣言を追加
+         ^
+SharedMemoryHelper.cpp:297:26: note: Technically the member function 'SharedMemoryHelper::DeleteSharedMemory' can be static (but you may consider moving to unnamed namespace).
+bool SharedMemoryHelper::DeleteSharedMemory() {
+                         ^
+SharedMemoryHelper.h:16:10: note: Technically the member function 'SharedMemoryHelper::DeleteSharedMemory' can be static (but you may consider moving to unnamed namespace).
+    bool DeleteSharedMemory(); // メソッドの宣言を追加
+         ^
+SharedMemoryHelper.h:17:10: performance: inconclusive: Technically the member function 'SharedMemoryHelper::DeleteEvent' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    bool DeleteEvent();
+         ^
+SharedMemoryHelper.cpp:303:26: note: Technically the member function 'SharedMemoryHelper::DeleteEvent' can be static (but you may consider moving to unnamed namespace).
+bool SharedMemoryHelper::DeleteEvent() {
+                         ^
+SharedMemoryHelper.h:17:10: note: Technically the member function 'SharedMemoryHelper::DeleteEvent' can be static (but you may consider moving to unnamed namespace).
+    bool DeleteEvent();
+         ^
+DisplayManager.cpp:3:0: information: Include file: <windows.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <windows.h>
+^
+DisplayManager.cpp:4:0: information: Include file: <setupapi.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <setupapi.h>
+^
+DisplayManager.cpp:5:0: information: Include file: <devguid.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <devguid.h>
+^
+DisplayManager.cpp:6:0: information: Include file: <regstr.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <regstr.h>
+^
+DisplayManager.cpp:7:0: information: Include file: <tchar.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <tchar.h>
+^
+DisplayManager.cpp:10:0: information: Include file: <cstring> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <cstring>
+^
+DisplayManager.cpp:11:0: information: Include file: <functional> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <functional>
+^
+DisplayManager.cpp:12:0: information: Include file: <algorithm> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <algorithm>
+^
+Utility.h:2:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+Utility.h:3:0: information: Include file: <windows.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <windows.h>
+^
+DisplayManager.cpp:14:0: information: Include file: <dxgi.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <dxgi.h>
+^
+DisplayManager.cpp:15:0: information: Include file: <d3d11.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <d3d11.h>
+^
+DisplayManager.cpp:16:0: information: Include file: <regex> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <regex>
+^
+DisplayManager.cpp:17:0: information: Include file: <sstream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sstream>
+^
+DisplayManager.cpp:28:58: style: C-style pointer casting [cstyleCast]
+    if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory))) {
+                                                         ^
+DisplayManager.cpp:202:18: style: Consider using std::transform algorithm instead of a raw loop. [useStlAlgorithm]
+        displays.push_back(r.di);
+                 ^
+GPUManager.cpp:2:0: information: Include file: <windows.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <windows.h>
+^
+GPUManager.cpp:3:0: information: Include file: <dxgi.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <dxgi.h>
+^
+GPUManager.cpp:4:0: information: Include file: <d3d11.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <d3d11.h> // 追加
+^
+GPUManager.cpp:5:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+GPUManager.cpp:6:0: information: Include file: <vector> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <vector>
+^
+GPUManager.cpp:7:0: information: Include file: <functional> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <functional>
+^
+GPUManager.cpp:8:0: information: Include file: <algorithm> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <algorithm>
+^
+GPUManager.cpp:40:63: style: C-style pointer casting [cstyleCast]
+    hr = pDevice->QueryInterface(__uuidof(ID3D11VideoDevice), (void**)&pVideoDevice);
+                                                              ^
+GPUManager.cpp:57:58: style: C-style pointer casting [cstyleCast]
+    if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory))) {
+                                                         ^
+GPUManager.cpp:93:5: style: Consider using std::all_of or std::none_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const auto& gpu : gpus) {
+    ^
+RegistryHelper.cpp:3:0: information: Include file: <windows.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <windows.h>
+^
+RegistryHelper.cpp:4:0: information: Include file: <stringapiset.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stringapiset.h>
+^
+RegistryHelper.cpp:7:0: information: Include file: <mutex> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <mutex>
+^
+RegistryHelper.cpp:19:57: style: C-style pointer casting [cstyleCast]
+        if (RegSetValueEx(hKey, L"VendorID", 0, REG_SZ, (BYTE*)wVendorID.c_str(), static_cast<DWORD>((wVendorID.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
+                                                        ^
+RegistryHelper.cpp:24:57: style: C-style pointer casting [cstyleCast]
+        if (RegSetValueEx(hKey, L"DeviceID", 0, REG_SZ, (BYTE*)wDeviceID.c_str(), static_cast<DWORD>((wDeviceID.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
+                                                        ^
+RegistryHelper.cpp:79:61: style: C-style pointer casting [cstyleCast]
+        if (RegSetValueEx(hKey, keyName.c_str(), 0, REG_SZ, (BYTE*)wDISPInfo.c_str(), static_cast<DWORD>((wDISPInfo.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
+                                                            ^
+RegistryHelper.cpp:68:65: style: inconclusive: Function 'WriteDISPInfoToRegistry' argument 1 names different: declaration 'DispInfo' definition 'DISPInfo'. [funcArgNamesDifferent]
+bool RegistryHelper::WriteDISPInfoToRegistry(const std::string& DISPInfo) {
+                                                                ^
+RegistryHelper.h:12:60: note: Function 'WriteDISPInfoToRegistry' argument 1 names different: declaration 'DispInfo' definition 'DISPInfo'.
+    static bool WriteDISPInfoToRegistry(const std::string& DispInfo);
+                                                           ^
+RegistryHelper.cpp:68:65: note: Function 'WriteDISPInfoToRegistry' argument 1 names different: declaration 'DispInfo' definition 'DISPInfo'.
+bool RegistryHelper::WriteDISPInfoToRegistry(const std::string& DISPInfo) {
+                                                                ^
+DebugLog.cpp:2:0: information: Include file: <windows.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <windows.h>
+^
+DebugLog.cpp:3:0: information: Include file: <fstream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <fstream>
+^
+DebugLog.cpp:4:0: information: Include file: <iostream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <iostream>
+^
+DebugLog.cpp:5:0: information: Include file: <filesystem> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <filesystem>
+^
+DebugLog.cpp:6:0: information: Include file: <atomic> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <atomic>
+^
+DebugLog.cpp:7:0: information: Include file: <mutex> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <mutex>
+^
+remote_server_tasktray.cpp:12:0: style: The function 'WinMain' is never used. [unusedFunction]
+int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow) {
 ^
 nofile:0:0: information: Active checkers: 172/592 (use --checkers-report=<filename> to see details) [checkersReport]
