@@ -75,6 +75,22 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
         }
     }
 
+    typedef BOOL (WINAPI *SetDpiCtxFn)(DPI_AWARENESS_CONTEXT);
+    HMODULE hUser32 = GetModuleHandleW(L"user32.dll");
+    if (hUser32) {
+        auto pSetContext = reinterpret_cast<SetDpiCtxFn>(
+            GetProcAddress(hUser32, "SetProcessDpiAwarenessContext"));
+        if (pSetContext) {
+            if (!pSetContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) {
+                DebugLog("WinMain: SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2) failed.");
+            } else {
+                DebugLog("WinMain: DPI awareness set to PER_MONITOR_AWARE_V2.");
+            }
+        } else {
+            DebugLog("WinMain: SetProcessDpiAwarenessContext not available.");
+        }
+    }
+
     TaskTrayApp app(hInstance);
     if (!app.Initialize()) {
         DebugLog("WinMain: Failed to initialize TaskTrayApp.");

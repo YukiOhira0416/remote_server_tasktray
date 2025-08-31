@@ -103,6 +103,8 @@ bool TaskTrayApp::Initialize() {
 
     if (!hwnd) return false;
 
+    taskbarCreatedMsg = RegisterWindowMessage(TEXT("TaskbarCreated"));
+
     CreateTrayIcon();
 
     // 初回ディスプレイ情報取得
@@ -125,6 +127,10 @@ void TaskTrayApp::CreateTrayIcon() {
     lstrcpy(nid.szTip, _T("GPU & Display Manager"));
 
     Shell_NotifyIcon(NIM_ADD, &nid);
+
+    // Opt into latest shell behavior from the start (prevents first-hover issues)
+    nid.uVersion = NOTIFYICON_VERSION_4;
+    Shell_NotifyIcon(NIM_SETVERSION, &nid);
 }
 
 bool TaskTrayApp::Cleanup() {
@@ -300,10 +306,28 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
         DebugLog("WindowProc: WM_CREATE - TaskTrayApp instance set.");
     }
 
+    // Handle Explorer restart
+    if (app && uMsg == app->taskbarCreatedMsg) {
+        DebugLog("WindowProc: TaskbarCreated broadcast received. Recreating tray icon.");
+        app->RecreateTrayIcon();
+        // Re-post the last tooltip if you cache it, otherwise rely on next update.
+        return 0;
+    }
+
     if (app) {
         bool cleanupResult = false; // 初期化
         HMENU hMenu = NULL; // ここで hMenu を宣言
         switch (uMsg) {
+        case WM_DISPLAYCHANGE:
+            DebugLog("WindowProc: WM_DISPLAYCHANGE - Recreating tray icon (display topology changed).");
+            if (app) { app->RecreateTrayIcon(); }
+            // Optional: app->RefreshDisplayList(); menu remains on-demand.
+            break;
+
+        case WM_SETTINGCHANGE:
+            DebugLog("WindowProc: WM_SETTINGCHANGE - Recreating tray icon (settings changed).");
+            if (app) { app->RecreateTrayIcon(); }
+            break;
         case WM_USER + 1://タスクトレイアイコンを右クリックしたとき
             if (lParam == WM_RBUTTONUP) {
                 DebugLog("WindowProc: WM_USER + 1 - Right button up.");

@@ -32,6 +32,7 @@ private:
     std::thread monitorThread;
     std::atomic<bool> running = true;
     std::vector<std::string> cachedDisplaySerials;
+    UINT taskbarCreatedMsg;
 };
 
 #endif // TASKTRAYAPP_H
