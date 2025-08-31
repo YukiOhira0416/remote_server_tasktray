@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <functional>
 #include <windows.h>
+#include <shellapi.h> // for Shell_NotifyIconGetRect
 #include <vector>
 #include <string>
 #include <CommCtrl.h>
@@ -30,6 +31,55 @@ std::filesystem::path GetExecutablePath() {
     char buffer[MAX_PATH];
     GetModuleFileNameA(NULL, buffer, MAX_PATH);
     return std::filesystem::path(buffer).parent_path();
+}
+
+// Helper: get the task tray icon rect in screen coordinates.
+// Uses Shell_NotifyIconGetRect when available; returns true if rc is valid.
+static bool GetTrayIconRect(HWND hWnd, UINT uID, RECT& rc) {
+    NOTIFYICONIDENTIFIER nii = {};
+    nii.cbSize = sizeof(nii);
+    nii.hWnd   = hWnd;
+    nii.uID    = uID; // matches nid.uID
+
+    HRESULT hr = Shell_NotifyIconGetRect(&nii, &rc);
+    if (SUCCEEDED(hr)) {
+        return true;
+    }
+    return false;
+}
+
+// Helper: choose a good menu popup point from an icon rect.
+// Prefer bottom-left of the icon area to avoid going off-screen.
+static POINT MenuPointFromIconRect(const RECT& rc) {
+    POINT pt;
+    pt.x = rc.left;
+    pt.y = rc.bottom;
+    return pt;
+}
+
+// Helper: robustly obtain a popup point for the tray menu.
+// Order: icon rect -> WM/queue coords -> cursor.
+static bool GetRobustTrayMenuPoint(HWND hWnd, UINT uID, POINT& pt) {
+    RECT rc;
+    if (GetTrayIconRect(hWnd, uID, rc)) {
+        pt = MenuPointFromIconRect(rc);
+        return true;
+    }
+
+    // Try message position (GET_X_LPARAM/GET_Y_LPARAM for WM_CONTEXTMENU handled elsewhere),
+    // but when not available, GetMessagePos can help.
+    DWORD mp = GetMessagePos();
+    if (mp != 0xFFFFFFFF) {
+        pt.x = GET_X_LPARAM(mp);
+        pt.y = GET_Y_LPARAM(mp);
+        return true;
+    }
+
+    // Fallback to cursor position.
+    if (GetCursorPos(&pt)) {
+        return true;
+    }
+    return false;
 }
 
 TaskTrayApp::TaskTrayApp(HINSTANCE hInst) : hInstance(hInst), hwnd(NULL), running(true) {
@@ -176,12 +226,15 @@ void TaskTrayApp::ShowContextMenu() {
             // *** DO NOT return here. Proceed to create a minimal menu. ***
         }
 
-        POINT pt;
-        if (!GetCursorPos(&pt)) {
-            DebugLog("Error: Failed to get cursor position.");
+        // >>> Robust tray menu placement (multi-monitor & DPI aware)
+        POINT pt = { 0, 0 };
+        bool havePoint = GetRobustTrayMenuPoint(hwnd, /*uID*/ 1, pt);
+        if (!havePoint) {
+            DebugLog("Error: Failed to determine popup point. Aborting context menu.");
             return;
         }
-        DebugLog("Cursor position obtained.");
+        DebugLog("Popup anchor computed.");
+        // <<<
 
         HMENU hMenu = CreatePopupMenu();
         if (hMenu == NULL) {
@@ -213,7 +266,9 @@ void TaskTrayApp::ShowContextMenu() {
         SetForegroundWindow(hwnd);
         DebugLog("Foreground window set.");
 
-        TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+        // Use TrackPopupMenuEx with robust flags for tray usage.
+        // Keep right-button behavior; bottom-align to stay under the icon area.
+        TrackPopupMenuEx(hMenu, TPM_RIGHTBUTTON | TPM_BOTTOMALIGN, pt.x, pt.y, hwnd, NULL);
         DebugLog("Popup menu tracked.");
 
         // Recommended by Microsoft so the menu reliably dismisses/focuses
