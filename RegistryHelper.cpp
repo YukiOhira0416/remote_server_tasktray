@@ -127,3 +127,36 @@ std::vector<std::string> RegistryHelper::ReadDISPInfoFromRegistry() {
 
     return serialNumbers;
 }
+
+std::vector<std::string> RegistryHelper::ReadDISPInfoFromRegistryOrdered() {
+    std::lock_guard<std::mutex> lock(registryMutex);
+
+    std::vector<std::string> out;
+    HKEY hKey;
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+        DebugLog("ReadDISPInfoFromRegistryOrdered: Failed to open registry key.");
+        return out;
+    }
+
+    // Read SerialNumber0..N sequentially until a gap is hit
+    for (DWORD i = 0; ; ++i) {
+        wchar_t valueName[64];
+        _snwprintf_s(valueName, _TRUNCATE, L"SerialNumber%u", i);
+
+        wchar_t serial[256];
+        DWORD serialSize = sizeof(serial);
+        LONG rc = RegQueryValueEx(hKey, valueName, nullptr, nullptr, reinterpret_cast<LPBYTE>(serial), &serialSize);
+        if (rc == ERROR_SUCCESS) {
+            out.push_back(utf16_to_utf8(serial));
+        } else if (rc == ERROR_FILE_NOT_FOUND) {
+            break; // ordered gap -> stop
+        } else {
+            DebugLog("ReadDISPInfoFromRegistryOrdered: RegQueryValueEx unexpected error: " + std::to_string(rc));
+            break;
+        }
+    }
+
+    RegCloseKey(hKey);
+    DebugLog("ReadDISPInfoFromRegistryOrdered: Read " + std::to_string(out.size()) + " items.");
+    return out;
+}
