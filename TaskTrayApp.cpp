@@ -95,6 +95,8 @@ bool TaskTrayApp::Initialize() {
 
     if (!hwnd) return false;
 
+    uTaskbarCreatedMsg = RegisterWindowMessage(L"TaskbarCreated");
+
     CreateTrayIcon();
 
     // 初回ディスプレイ情報取得
@@ -115,8 +117,29 @@ void TaskTrayApp::CreateTrayIcon() {
     nid.uCallbackMessage = WM_USER + 1;
     nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     lstrcpy(nid.szTip, _T("GPU & Display Manager"));
-
     Shell_NotifyIcon(NIM_ADD, &nid);
+
+    nid.uVersion = NOTIFYICON_VERSION_4;
+    Shell_NotifyIcon(NIM_SETVERSION, &nid);
+}
+
+void TaskTrayApp::RecreateTrayIcon() {
+    // Delete old icon if present and re-add, including tooltip and callback
+    Shell_NotifyIcon(NIM_DELETE, &nid);
+    ZeroMemory(&nid, sizeof(nid));
+    nid.cbSize = sizeof(NOTIFYICONDATA);
+    nid.hWnd = hwnd;
+    nid.uID = 1;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    nid.uCallbackMessage = WM_USER + 1;
+    nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    lstrcpy(nid.szTip, _T("GPU & Display Manager"));
+    Shell_NotifyIcon(NIM_ADD, &nid);
+
+    // Opt into modern behavior (ensures reliable tooltip/interaction)
+    nid.uVersion = NOTIFYICON_VERSION_4;
+    Shell_NotifyIcon(NIM_SETVERSION, &nid);
+    DebugLog("RecreateTrayIcon: Tray icon recreated and version set.");
 }
 
 bool TaskTrayApp::Cleanup() {
@@ -199,33 +222,30 @@ void TaskTrayApp::ShowContextMenu() {
     }
 }
 
-void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string> displays) {
-    DebugLog("UpdateDisplayMenu: Start updating display menu.");
-
-    // 既存のメニュー項目を削除
+void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string>& /*unused*/) {
+    DebugLog("UpdateDisplayMenu: Rebuilding from shared memory order.");
     while (RemoveMenu(hMenu, 0, MF_BYPOSITION));
 
-    // 現在選択されているディスプレイを取得
-    SharedMemoryHelper sharedMemoryHelper(this);
-    std::string selectedDisplaySerial = sharedMemoryHelper.ReadSharedMemory("DISP_INFO");
-    DebugLog("Selected display serial: " + selectedDisplaySerial);
+    SharedMemoryHelper shm(this);
+    // Authoritative order for display items
+    std::vector<std::string> ordered = shm.ReadDisplayList();
 
-    for (size_t i = 0; i < displays.size(); ++i) {
+    // Currently selected display (keep your existing selection behavior)
+    std::string selected = shm.ReadSharedMemory("DISP_INFO");
+    DebugLog("UpdateDisplayMenu: Selected display serial: " + selected);
+
+    for (size_t i = 0; i < ordered.size(); ++i) {
         UINT flags = MF_STRING;
-        if (displays[i] == selectedDisplaySerial) {
-            flags |= MF_CHECKED;
-        }
-        // Convert std::string to std::wstring
-        std::wstring displayName(displays[i].begin(), displays[i].end());
-        if (AppendMenu(hMenu, flags, 100 + i, displayName.c_str())) {
-            DebugLog("Successfully added menu item: " + displays[i]);
-        }
-        else {
-            DebugLog("Failed to add menu item: " + displays[i]);
+        if (ordered[i] == selected) flags |= MF_CHECKED;
+
+        std::wstring wlabel(ordered[i].begin(), ordered[i].end());
+        if (AppendMenu(hMenu, flags, 100 + (UINT)i, wlabel.c_str())) {
+            DebugLog("UpdateDisplayMenu: Added: " + ordered[i]);
+        } else {
+            DebugLog("UpdateDisplayMenu: Failed to add: " + ordered[i]);
         }
     }
-
-    DebugLog("UpdateDisplayMenu: Finished updating display menu.");
+    DebugLog("UpdateDisplayMenu: Done.");
 }
 
 void TaskTrayApp::SelectDisplay(int displayIndex) {
@@ -265,7 +285,6 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
     }
 
     if (app) {
-        bool cleanupResult = false; // 初期化
         HMENU hMenu = NULL; // ここで hMenu を宣言
         switch (uMsg) {
         case WM_USER + 1://タスクトレイアイコンを右クリックしたとき
@@ -290,24 +309,33 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
         case WM_COMMAND:
             if (LOWORD(wParam) == 1) {//終了ボタンをクリックしたとき
                 DebugLog("WindowProc: WM_COMMAND - Exit command received.");
-                cleanupResult = app->Cleanup();
-                if (cleanupResult) {
-                    DebugLog("WindowProc: Cleanup succeeded.");
-                    PostQuitMessage(0);
-                }
-                else {
-                    DebugLog("WindowProc: Cleanup failed.");
-                }
-                
+                app->Cleanup();
+                DebugLog("WindowProc: Cleanup succeeded.");
+                PostQuitMessage(0);
             }
             else if (LOWORD(wParam) >= 100) {//ディスプレイを選択したとき
                 DebugLog("WindowProc: WM_COMMAND - Display selection command received.");
                 app->SelectDisplay(LOWORD(wParam) - 100);
             }
             break;
-        default:
+        // Re-add after display topology/primary change
+        case WM_DISPLAYCHANGE:
+            DebugLog("WindowProc: WM_DISPLAYCHANGE - Re-enumerate displays and recreate tray icon.");
+            app->RefreshDisplayList();
+            app->RecreateTrayIcon();
+            break;
+
+        // Re-add after explorer/taskbar recreation
+        default: {
+            if (uMsg == app->uTaskbarCreatedMsg) {
+                DebugLog("WindowProc: TaskbarCreated - Recreate tray icon, refresh menu.");
+                app->RecreateTrayIcon();
+                app->RefreshDisplayList();
+                break;
+            }
             DebugLog("WindowProc: Default case - Message received: " + std::to_string(uMsg));
             break;
+        }
         }
     }
     else {
@@ -352,22 +380,25 @@ void TaskTrayApp::MonitorDisplayChanges() {
 
 
         if (Displays_Before != Displays_After) {
-            // 変化があった場合、ディスプレイリストを更新
-            Displays_Before = Displays_After;
-            DebugLog("MonitorDisplayChanges: Display list updated.");
+            DebugLog("MonitorDisplayChanges: Display configuration changed.");
 
-            // プライマリディスプレイのシリアルナンバーを共有メモリとレジストリに保存
-            for (const auto& display : NewDisplays) {
-                if (display.isPrimary) {
-                    sharedMemoryHelper.WriteSharedMemory("DISP_INFO", display.serialNumber);
-                    DebugLog("MonitorDisplayChanges: Primary display serial number saved: " + display.serialNumber);
-                    break;
+            // Displays_After is the new, ordered list of serials.
+            // 1) Write list to shared memory
+            if (!sharedMemoryHelper.WriteDisplayList(Displays_After)) {
+                DebugLog("MonitorDisplayChanges: WriteDisplayList failed.");
+            }
+
+            // 2) Maintain DISP_INFO for compat
+            if (!Displays_After.empty()) {
+                if (!sharedMemoryHelper.WriteSharedMemory("DISP_INFO", Displays_After[0])) { // primary is index 0
+                    DebugLog("MonitorDisplayChanges: Failed to write DISP_INFO (primary).");
                 }
             }
 
+            // 3) Rewrite registry
             HKEY hKey;
             if (RegCreateKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, NULL, 0, KEY_WRITE | KEY_READ, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-                // 既存の値を削除
+                // Delete existing values
                 DWORD valueCount = 0;
                 RegQueryInfoKey(hKey, NULL, NULL, NULL, NULL, NULL, NULL, &valueCount, NULL, NULL, NULL, NULL);
                 for (DWORD i = 0; i < valueCount; ++i) {
@@ -377,28 +408,21 @@ void TaskTrayApp::MonitorDisplayChanges() {
                         RegDeleteValue(hKey, valueName);
                     }
                 }
+                RegCloseKey(hKey); // Close key after use
             }
             else {
-                DebugLog("WriteDISPInfoToRegistry: Failed to create or open registry key.");
+                DebugLog("MonitorDisplayChanges: Failed to create or open registry key for clearing.");
             }
 
-            char buffer[10];
-			::serialNumberIndex = 0;
-            for (const auto& display : NewDisplays) {
-                _itoa_s(::serialNumberIndex, buffer, sizeof(buffer), 10); // 変換を行う
-                std::string displayInfo = std::string(buffer);
-
-                if (!RegistryHelper::WriteDISPInfoToRegistry(display.serialNumber)) {
-                    DebugLog("MonitorDisplayChanges: Failed to write primary display serial number to registry." + displayInfo);
-                    continue;
+            ::serialNumberIndex = 0;
+            for (const auto& serial : Displays_After) {
+                if (!RegistryHelper::WriteDISPInfoToRegistry(serial)) {
+                    DebugLog("MonitorDisplayChanges: Failed to write serial to registry: " + serial);
                 }
-
-                DebugLog("MonitorDisplayChanges: Primary display serial number saved: " + displayInfo);
-
             }
-            DebugLog("MonitorDisplayChanges: Retrieved display list.");
+            DebugLog("MonitorDisplayChanges: Registry updated.");
 
-            // メインスレッドにメニューの更新を指示
+            // Notify UI thread to rebuild menu
             PostMessage(hwnd, WM_USER + 2, 0, 0);
         }
     }
@@ -406,88 +430,74 @@ void TaskTrayApp::MonitorDisplayChanges() {
 
 
 void TaskTrayApp::RefreshDisplayList() {
-    // GPUの決定
-    SharedMemoryHelper sharedMemoryHelper(this);
-    std::string gpuInfo = sharedMemoryHelper.ReadSharedMemory("GPU_INFO");
+    SharedMemoryHelper shm(this);
+    std::string gpuInfo = shm.ReadSharedMemory("GPU_INFO");
     if (gpuInfo.empty()) {
         DebugLog("RefreshDisplayList: Failed to read GPU_INFO or GPU_INFO is empty.");
-        // メッセージボックスを表示
         int result = MessageBox(hwnd, _T("メモリーから情報を読み取れません。製造元に問い合わせてください。アプリケーションを終了します。"), _T("エラー"), MB_OK | MB_ICONERROR);
-        if (result == IDOK) {
-            // アプリケーションを終了
-            PostQuitMessage(0);
-        }
+        if (result == IDOK) PostQuitMessage(0);
+        return;
     }
     DebugLog("RefreshDisplayList: Read GPU_INFO: " + gpuInfo);
 
     std::string gpuVendorID, gpuDeviceID;
-    size_t delimiter = gpuInfo.find(":");
-    if (delimiter != std::string::npos) {
-        gpuVendorID = gpuInfo.substr(0, delimiter);
-        gpuDeviceID = gpuInfo.substr(delimiter + 1);
-    }
-    else {
+    size_t pos = gpuInfo.find(':');
+    if (pos == std::string::npos) {
         DebugLog("RefreshDisplayList: Invalid GPU_INFO format.");
+        return;
     }
+    gpuVendorID = gpuInfo.substr(0, pos);
+    gpuDeviceID = gpuInfo.substr(pos + 1);
 
-    // ディスプレイ情報を取得する
-    DebugLog("RefreshDisplayList: Calling GetDisplaysForGPU with VendorID: " + gpuVendorID + ", DeviceID: " + gpuDeviceID);
+    // Enumerate displays primary-first then port order
     std::vector<DisplayInfo> newDisplays = DisplayManager::GetDisplaysForGPU(gpuVendorID, gpuDeviceID);
     if (newDisplays.empty()) {
-        DebugLog("RefreshDisplayList: Failed to retrieve display list or no displays found.");
+        DebugLog("RefreshDisplayList: No displays found.");
+        return;
     }
-    else {
-        bool primaryDisplayFound = false;
-        for (const auto& display : newDisplays) {
-            if (display.isPrimary) {
-                if (!sharedMemoryHelper.WriteSharedMemory("DISP_INFO", display.serialNumber)) {
-                    DebugLog("RefreshDisplayList: Failed to write primary display serial number to shared memory.");
-                }
-                else {
-                    DebugLog("RefreshDisplayList: Primary display serial number writen sussesfully to shared memory.");
-                }
-                primaryDisplayFound = true;
-                break;
-            }
 
-        }
+    // Build serial list in required order
+    std::vector<std::string> serials;
+    serials.reserve(newDisplays.size());
+    for (const auto& d : newDisplays) serials.push_back(d.serialNumber);
 
-        if (!primaryDisplayFound) {
-            DebugLog("RefreshDisplayList: No primary display found.");
-        }
-
-        HKEY hKey;
-        if (RegCreateKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, NULL, 0, KEY_WRITE | KEY_READ, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-            // 既存の値を削除
-            DWORD valueCount = 0;
-            RegQueryInfoKey(hKey, NULL, NULL, NULL, NULL, NULL, NULL, &valueCount, NULL, NULL, NULL, NULL);
-            for (DWORD i = 0; i < valueCount; ++i) {
-                wchar_t valueName[256];
-                DWORD valueNameSize = sizeof(valueName) / sizeof(valueName[0]);
-                if (RegEnumValue(hKey, 0, valueName, &valueNameSize, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
-                    RegDeleteValue(hKey, valueName);
-                }
-            }
-        }
-        else {
-            DebugLog("WriteDISPInfoToRegistry: Failed to create or open registry key.");
-        }
-
-        char buffer[10]; // 変換後の文字列を格納するバッファ
-        ::serialNumberIndex = 0;
-        for (const auto& display : newDisplays) {
-            _itoa_s(::serialNumberIndex, buffer, sizeof(buffer), 10); // 変換を行う
-            std::string displayInfo = std::string(buffer);
-            if (!RegistryHelper::WriteDISPInfoToRegistry(display.serialNumber)) {
-                DebugLog("RefreshDisplayList: Failed to write primary display serial number to registry." + displayInfo);
-                continue;
-            }
-
-            DebugLog("RefreshDisplayList: Primary display serial number saved: " + displayInfo);
-            
-        }
-        DebugLog("RefreshDisplayList: Retrieved display list.");
+    // 1) Write list to shared memory: DISP_INFO_0..N
+    if (!shm.WriteDisplayList(serials)) {
+        DebugLog("RefreshDisplayList: WriteDisplayList failed.");
     }
+
+    // 2) Maintain existing selected-display key for backward compat
+    if (!shm.WriteSharedMemory("DISP_INFO", serials[0])) { // primary is index 0
+        DebugLog("RefreshDisplayList: Failed to write DISP_INFO (primary).");
+    }
+
+    // 3) Rewrite registry SerialNumber0.. in the same order
+    HKEY hKey;
+    if (RegCreateKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, NULL, 0, KEY_WRITE | KEY_READ, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        // Delete existing values
+        DWORD valueCount = 0;
+        RegQueryInfoKey(hKey, NULL, NULL, NULL, NULL, NULL, NULL, &valueCount, NULL, NULL, NULL, NULL);
+        for (DWORD i = 0; i < valueCount; ++i) {
+            wchar_t valueName[256]; DWORD valueNameSize = _countof(valueName);
+            if (RegEnumValue(hKey, 0, valueName, &valueNameSize, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+                RegDeleteValue(hKey, valueName);
+            }
+        }
+        RegCloseKey(hKey);
+    } else {
+        DebugLog("RefreshDisplayList: Failed to open registry key for clearing.");
+    }
+
+    ::serialNumberIndex = 0;
+    for (const auto& s : serials) {
+        if (!RegistryHelper::WriteDISPInfoToRegistry(s)) {
+            DebugLog("RefreshDisplayList: Failed to write SerialNumber to registry.");
+        }
+    }
+    DebugLog("RefreshDisplayList: Display list written (shared memory + registry).");
+
+    // Notify UI thread to rebuild menu
+    PostMessage(hwnd, WM_USER + 2, 0, 0);
 }
 
 int TaskTrayApp::Run() {
