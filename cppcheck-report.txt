@@ -1,0 +1,157 @@
+TaskTrayApp.h:4:0: information: Include file: <windows.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <windows.h>
+^
+TaskTrayApp.h:5:0: information: Include file: <vector> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <vector>
+^
+TaskTrayApp.h:6:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+TaskTrayApp.h:7:0: information: Include file: <thread> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <thread>
+^
+TaskTrayApp.h:8:0: information: Include file: <atomic> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <atomic>
+^
+Globals.h:2:0: information: Include file: <vector> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <vector>
+^
+DisplayManager.h:2:0: information: Include file: <vector> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <vector>
+^
+DisplayManager.h:3:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+GPUInfo.h:2:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+DisplayManager.h:5:0: information: Include file: <dxgi.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <dxgi.h> // 追加
+^
+StringConversion.h:4:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+GPUManager.h:2:0: information: Include file: <vector> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <vector>
+^
+GPUManager.h:3:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+GPUManager.h:5:0: information: Include file: <dxgi.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <dxgi.h>
+^
+GPUManager.h:6:0: information: Include file: <d3d11.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <d3d11.h> // 追加
+^
+RegistryHelper.h:4:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+RegistryHelper.h:5:0: information: Include file: <functional> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <functional>
+^
+RegistryHelper.h:6:0: information: Include file: <algorithm> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <algorithm>
+^
+SharedMemoryHelper.h:5:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+SharedMemoryHelper.h:6:0: information: Include file: <unordered_map> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <unordered_map>
+^
+SharedMemoryHelper.h:7:0: information: Include file: <windows.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <windows.h>
+^
+TaskTrayApp.cpp:7:0: information: Include file: <tchar.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <tchar.h>
+^
+TaskTrayApp.cpp:8:0: information: Include file: <iostream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <iostream>
+^
+TaskTrayApp.cpp:9:0: information: Include file: <algorithm> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <algorithm>
+^
+TaskTrayApp.cpp:10:0: information: Include file: <functional> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <functional>
+^
+TaskTrayApp.cpp:11:0: information: Include file: <windows.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <windows.h>
+^
+TaskTrayApp.cpp:12:0: information: Include file: <vector> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <vector>
+^
+TaskTrayApp.cpp:13:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+TaskTrayApp.cpp:14:0: information: Include file: <CommCtrl.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <CommCtrl.h>
+^
+DebugLog.h:2:0: information: Include file: <string> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string>
+^
+TaskTrayApp.cpp:17:0: information: Include file: <fstream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <fstream>
+^
+TaskTrayApp.cpp:18:0: information: Include file: <ctime> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <ctime>
+^
+TaskTrayApp.cpp:19:0: information: Include file: <iomanip> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <iomanip>
+^
+TaskTrayApp.cpp:20:0: information: Include file: <sstream> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sstream>
+^
+TaskTrayApp.cpp:21:0: information: Include file: <filesystem> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <filesystem>
+^
+TaskTrayApp.cpp:22:0: information: Include file: <chrono> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <chrono>
+^
+TaskTrayApp.cpp:23:0: information: Include file: <dbt.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <dbt.h>
+^
+TaskTrayApp.h:15:9: performance: inconclusive: Technically the member function 'TaskTrayApp::Run' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    int Run();
+        ^
+TaskTrayApp.cpp:582:18: note: Technically the member function 'TaskTrayApp::Run' can be static (but you may consider moving to unnamed namespace).
+int TaskTrayApp::Run() {
+                 ^
+TaskTrayApp.h:15:9: note: Technically the member function 'TaskTrayApp::Run' can be static (but you may consider moving to unnamed namespace).
+    int Run();
+        ^
+TaskTrayApp.h:13:5: style: Class 'TaskTrayApp' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    TaskTrayApp(HINSTANCE hInstance);
+    ^
+SharedMemoryHelper.h:12:5: style: Class 'SharedMemoryHelper' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    SharedMemoryHelper(TaskTrayApp* app);
+    ^
+TaskTrayApp.cpp:354:21: style: Condition 'cleanupResult' is always true [knownConditionTrueFalse]
+                if (cleanupResult) {
+                    ^
+TaskTrayApp.cpp:353:45: note: Calling function 'Cleanup' returns 1
+                cleanupResult = app->Cleanup();
+                                            ^
+TaskTrayApp.cpp:353:45: note: Assignment 'cleanupResult=app->Cleanup()', assigned value is 1
+                cleanupResult = app->Cleanup();
+                                            ^
+TaskTrayApp.cpp:354:21: note: Condition 'cleanupResult' is always true
+                if (cleanupResult) {
+                    ^
+TaskTrayApp.cpp:314:14: style: The scope of the variable 'cleanupResult' can be reduced. [variableScope]
+        bool cleanupResult = false; // 初期化
+             ^
+TaskTrayApp.cpp:80:36: style: inconclusive: Function 'TaskTrayApp' argument 1 names different: declaration 'hInstance' definition 'hInst'. [funcArgNamesDifferent]
+TaskTrayApp::TaskTrayApp(HINSTANCE hInst) : hInstance(hInst), hwnd(NULL), running(true) {
+                                   ^
+TaskTrayApp.h:13:27: note: Function 'TaskTrayApp' argument 1 names different: declaration 'hInstance' definition 'hInst'.
+    TaskTrayApp(HINSTANCE hInstance);
+                          ^
+TaskTrayApp.cpp:80:36: note: Function 'TaskTrayApp' argument 1 names different: declaration 'hInstance' definition 'hInst'.
+TaskTrayApp::TaskTrayApp(HINSTANCE hInst) : hInstance(hInst), hwnd(NULL), running(true) {
+                                   ^
+TaskTrayApp.cpp:85:0: style: The function 'Initialize' is never used. [unusedFunction]
+bool TaskTrayApp::Initialize() {
+^
+TaskTrayApp.cpp:582:0: style: The function 'Run' is never used. [unusedFunction]
+int TaskTrayApp::Run() {
+^
+nofile:0:0: information: Active checkers: 172/592 (use --checkers-report=<filename> to see details) [checkersReport]

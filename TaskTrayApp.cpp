@@ -23,6 +23,10 @@
 #include <dbt.h>
 
 
+// --- Added for robust tray icon recreation across shell/monitor changes ---
+static const UINT WM_TASKBARCREATED = RegisterWindowMessageW(L"TaskbarCreated");
+
+
 static std::vector<std::string> ReadOrderedDisplaysFromSharedMemory(SharedMemoryHelper& shm) {
     std::vector<std::string> out;
 
@@ -161,6 +165,10 @@ void TaskTrayApp::CreateTrayIcon() {
     lstrcpy(nid.szTip, _T("GPU & Display Manager"));
 
     Shell_NotifyIcon(NIM_ADD, &nid);
+
+    // --- Added: ensure modern behavior for tooltips/callbacks across DPI/monitor changes ---
+    nid.uVersion = NOTIFYICON_VERSION_4;
+    Shell_NotifyIcon(NIM_SETVERSION, &nid);
 }
 
 bool TaskTrayApp::Cleanup() {
@@ -306,10 +314,24 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
         bool cleanupResult = false; // 初期化
         HMENU hMenu = NULL; // ここで hMenu を宣言
         switch (uMsg) {
+        case WM_DISPLAYCHANGE: {
+            // Recreate tray icon after topology changes, keep the menu & tooltip usable
+            app->CreateTrayIcon();
+
+            // Update tooltip reflecting current primary (index 0 in shared memory order)
+            SharedMemoryHelper shm(app);
+            std::vector<std::string> ordered = ReadOrderedDisplaysFromSharedMemory(shm);
+            std::string primary = ordered.empty() ? std::string() : ordered[0];
+            UpdateTrayTooltip(hwnd, app->nid, primary);
+
+            // Rebuild menu asynchronously
+            PostMessage(hwnd, WM_USER + 2, 0, 0);
+            break;
+        }
         case WM_USER + 1://タスクトレイアイコンを右クリックしたとき
-            if (lParam == WM_RBUTTONUP) {
-                DebugLog("WindowProc: WM_USER + 1 - Right button up.");
-                app->ShowContextMenu(); // グローバル変数 displays を引数として渡す
+            if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU) {
+                DebugLog("WindowProc: WM_USER + 1 - Context open.");
+                app->ShowContextMenu();
             }
             break;
         case WM_USER + 2://ディスプレイの接続状況に変化があったとき
@@ -344,6 +366,18 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
             }
             break;
         default:
+            // Handle Explorer restarts (taskbar recreation)
+            if (uMsg == WM_TASKBARCREATED) {
+                app->CreateTrayIcon();
+
+                SharedMemoryHelper shm(app);
+                std::vector<std::string> ordered = ReadOrderedDisplaysFromSharedMemory(shm);
+                std::string primary = ordered.empty() ? std::string() : ordered[0];
+                UpdateTrayTooltip(hwnd, app->nid, primary);
+
+                PostMessage(hwnd, WM_USER + 2, 0, 0);
+                break;
+            }
             DebugLog("WindowProc: Default case - Message received: " + std::to_string(uMsg));
             break;
         }
