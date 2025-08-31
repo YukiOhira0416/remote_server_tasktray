@@ -11,6 +11,7 @@ public:
     static std::pair<std::string, std::string> ReadRegistry();
     static bool WriteDISPInfoToRegistry(const std::string& DispInfo);
     static std::vector<std::string> ReadDISPInfoFromRegistry();
+    static std::vector<std::string> ReadDISPInfoFromRegistryOrdered();
 };
 
 #endif
