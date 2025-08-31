@@ -26,6 +26,11 @@
 #include <regex>
 
 
+// Use an app-range message for tray callbacks per MS docs.
+#ifndef WM_TRAYICON
+constexpr UINT WM_TRAYICON = WM_APP + 1;
+#endif
+
 static const UINT WM_TASKBARCREATED = RegisterWindowMessageW(L"TaskbarCreated");
 
 std::filesystem::path GetExecutablePath() {
@@ -177,7 +182,7 @@ void TaskTrayApp::CreateTrayIcon() {
     nid.hWnd = hwnd;
     nid.uID = 1;
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-    nid.uCallbackMessage = WM_USER + 1;
+    nid.uCallbackMessage = WM_TRAYICON;
     nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     lstrcpy(nid.szTip, _T("GPU & Display Manager"));
 
@@ -269,7 +274,16 @@ void TaskTrayApp::ShowContextMenu() {
 
         // Use TrackPopupMenuEx with robust flags for tray usage.
         // Keep right-button behavior; bottom-align to stay under the icon area.
-        TrackPopupMenuEx(hMenu, TPM_RIGHTBUTTON | TPM_BOTTOMALIGN, pt.x, pt.y, hwnd, NULL);
+        BOOL ok = TrackPopupMenuEx(hMenu, TPM_RIGHTBUTTON | TPM_BOTTOMALIGN, pt.x, pt.y, hwnd, NULL);
+        if (!ok) {
+            // Fallback once: recalc from live cursor to avoid rare anchor failures
+            DebugLog("TrackPopupMenuEx returned 0; retrying with cursor position fallback.");
+            POINT cur{};
+            if (GetCursorPos(&cur)) {
+                SetForegroundWindow(hwnd);
+                (void)TrackPopupMenuEx(hMenu, TPM_RIGHTBUTTON | TPM_BOTTOMALIGN | TPM_NONOTIFY, cur.x, cur.y, hwnd, NULL);
+            }
+        }
         DebugLog("Popup menu tracked.");
 
         // Recommended by Microsoft so the menu reliably dismisses/focuses
@@ -385,7 +399,7 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
         }
         return 0; // Eat it; we handled showing the popup
     // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-        case WM_USER + 1:
+        case WM_TRAYICON:
             if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU) {
                 DebugLog("WindowProc: Tray icon context request received.");
                 app->ShowContextMenu();
