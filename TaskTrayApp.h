@@ -25,6 +25,7 @@ public:
 
 
 private:
+    void RecreateTrayIcon();
     HINSTANCE hInstance;
     HWND hwnd;
     NOTIFYICONDATA nid;

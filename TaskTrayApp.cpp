@@ -145,6 +145,32 @@ bool TaskTrayApp::Cleanup() {
     return true;
 }
 
+// Recreate the tray icon on the UI thread and set NOTIFYICON_VERSION_4.
+// This helps the shell re-bind hover/tooltip/menu after DPI or primary changes.
+void TaskTrayApp::RecreateTrayIcon() {
+    // Delete then re-add to force rebind in the current DPI/monitor context
+    Shell_NotifyIcon(NIM_DELETE, &nid);
+
+    ZeroMemory(&nid, sizeof(nid));
+    nid.cbSize = sizeof(NOTIFYICONDATA);
+    nid.hWnd = hwnd;
+    nid.uID = 1;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    nid.uCallbackMessage = WM_USER + 1;
+    nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+
+    // Keep a consistent tooltip format; the actual text will be set via WM_APP_UPDATE_TOOLTIP
+    lstrcpy(nid.szTip, _T("GPU & Display Manager"));
+
+    Shell_NotifyIcon(NIM_ADD, &nid);
+
+    // Opt into the latest behavior for reliability across shells
+    nid.uVersion = NOTIFYICON_VERSION_4;
+    Shell_NotifyIcon(NIM_SETVERSION, &nid);
+
+    DebugLog("RecreateTrayIcon: Tray icon re-added and version set (NOTIFYICON_VERSION_4).");
+}
+
 void TaskTrayApp::ShowContextMenu() {
     if (hwnd == nullptr) {
         DebugLog("Error: hwnd is nullptr.");
@@ -284,10 +310,20 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
                 app->ShowContextMenu(); // グローバル変数 displays を引数として渡す
             }
             break;
-        case WM_USER + 2://ディスプレイの接続状況に変化があったとき
-            DebugLog("WindowProc: WM_USER + 2 - Display change notification received. Menu will be updated on next right-click.");
-            // The menu is built on-demand by ShowContextMenu. We just need to receive the signal.
-            // The old code here was building and destroying a menu for no reason.
+        case WM_USER + 2: // ディスプレイの接続状況に変化があったとき
+            DebugLog("WindowProc: WM_USER + 2 - Display change notification received. Recreating tray icon and menu will be refreshed on demand.");
+            // Recreate the icon to avoid first-hover no-op on per-monitor DPI changes
+            if (app) {
+                app->RecreateTrayIcon();
+            }
+            // The menu is built on demand by ShowContextMenu(); no rebuild here.
+            break;
+        case WM_DPICHANGED:
+            DebugLog("WindowProc: WM_DPICHANGED - DPI context changed; recreating tray icon.");
+            if (app) {
+                app->RecreateTrayIcon();
+            }
+            // Let DefWindowProc handle suggested rect, etc., per your current behavior
             break;
         case WM_APP_UPDATE_TOOLTIP: {
             // lParam carries a pointer to a heap-allocated wide string (std::wstring*)
