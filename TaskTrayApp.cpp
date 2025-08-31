@@ -35,17 +35,7 @@ static bool  s_hasContextPt  = false;
 static const UINT  ID_TRAYICON_RETRY_TIMER = 0x51;
 static const int   TRAYICON_RETRY_MAX     = 10;
 static       int   s_trayRetryCount       = 0;
-
-static bool IsTrayIconVisible(HWND hWnd, UINT uID) {
-    RECT rc{};
-    return GetTrayIconRect(hWnd, uID, rc);
-}
-
-static void StartTrayRetryTimer(HWND hWnd, UINT initialMs = 500) {
-    // small backoff: 0.5s, 1s, 2s, ...
-    UINT due = initialMs << std::min(s_trayRetryCount, 4); // cap growth
-    SetTimer(hWnd, ID_TRAYICON_RETRY_TIMER, due, NULL);
-}
+// Note: IsTrayIconVisible and StartTrayRetryTimer are defined after GetTrayIconRect to resolve forward declaration issues.
 
 
 // Use an app-range message for tray callbacks per MS docs.
@@ -74,6 +64,18 @@ static bool GetTrayIconRect(HWND hWnd, UINT uID, RECT& rc) {
         return true;
     }
     return false;
+}
+
+static bool IsTrayIconVisible(HWND hWnd, UINT uID) {
+    RECT rc{};
+    return GetTrayIconRect(hWnd, uID, rc);
+}
+
+static void StartTrayRetryTimer(HWND hWnd, UINT initialMs = 500) {
+    // small backoff: 0.5s, 1s, 2s, ...
+    // Note: parens around std::min are required to avoid macro expansion on Windows
+    UINT due = initialMs << (std::min)(s_trayRetryCount, 4); // cap growth
+    SetTimer(hWnd, ID_TRAYICON_RETRY_TIMER, due, NULL);
 }
 
 // Helper: choose a good menu popup point from an icon rect.
