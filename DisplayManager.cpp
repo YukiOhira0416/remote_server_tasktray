@@ -115,8 +115,16 @@ std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPU(const std::string& gp
     while (EnumDisplayDevices(NULL, deviceIndex, &dd, 0)) {
         if (dd.StateFlags & DISPLAY_DEVICE_ACTIVE) {
             DISPLAY_DEVICE ddMonitor;
-            ddMonitor.cb = sizeof(ddMonitor);
-            if (EnumDisplayDevices(dd.DeviceName, 0, &ddMonitor, 0)) {
+            for (DWORD j = 0; ; ++j) {
+                ZeroMemory(&ddMonitor, sizeof(ddMonitor));
+                ddMonitor.cb = sizeof(ddMonitor);
+                if (!EnumDisplayDevices(dd.DeviceName, j, &ddMonitor, 0)) {
+                    if (j == 0) {
+                        DebugLog("GetDisplaysForGPU: Failed to enumerate display devices for " + ConvertWStringToString(dd.DeviceName));
+                    }
+                    break;
+                }
+
                 // ディスプレイが繋がっているGPUのベンダーIDとデバイスIDを取得
                 std::string deviceID = ConvertWStringToString(dd.DeviceID);
 
@@ -154,13 +162,10 @@ std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPU(const std::string& gp
                     DisplayInfo di;
                     di.name = ConvertWStringToString(ddMonitor.DeviceID);
                     di.serialNumber = ConvertWStringToString(ddMonitor.DeviceID);
-                    di.isPrimary = (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
+                    di.isPrimary = ((dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0) && (j == 0);
                     displays.push_back(di); // 修正: DisplayInfo を追加
                     DebugLog("GetDisplaysForGPU: Found display - Name: " + di.name + ", SerialNumber: " + di.serialNumber + ", IsPrimary: " + std::to_string(di.isPrimary));
                 }
-            }
-            else {
-                DebugLog("GetDisplaysForGPU: Failed to enumerate display devices for " + ConvertWStringToString(dd.DeviceName));
             }
         }
         deviceIndex++;
