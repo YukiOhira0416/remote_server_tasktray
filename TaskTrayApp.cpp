@@ -31,6 +31,23 @@ static POINT s_lastContextPt = { 0, 0 };
 static bool  s_hasContextPt  = false;
 
 
+// --- Tray icon retry (additive) ---
+static const UINT  ID_TRAYICON_RETRY_TIMER = 0x51;
+static const int   TRAYICON_RETRY_MAX     = 10;
+static       int   s_trayRetryCount       = 0;
+
+static bool IsTrayIconVisible(HWND hWnd, UINT uID) {
+    RECT rc{};
+    return GetTrayIconRect(hWnd, uID, rc);
+}
+
+static void StartTrayRetryTimer(HWND hWnd, UINT initialMs = 500) {
+    // small backoff: 0.5s, 1s, 2s, ...
+    UINT due = initialMs << std::min(s_trayRetryCount, 4); // cap growth
+    SetTimer(hWnd, ID_TRAYICON_RETRY_TIMER, due, NULL);
+}
+
+
 // Use an app-range message for tray callbacks per MS docs.
 #ifndef WM_TRAYICON
 constexpr UINT WM_TRAYICON = WM_APP + 1;
@@ -170,6 +187,13 @@ bool TaskTrayApp::Initialize() {
     if (!hwnd) return false;
 
     CreateTrayIcon();
+
+    // After CreateTrayIcon(); keep as-is above
+    if (!IsTrayIconVisible(hwnd, /*uID*/ 1)) {
+        // Explorer may not be ready yet; schedule retries to add/confirm icon.
+        s_trayRetryCount = 0;
+        StartTrayRetryTimer(hwnd, 500);
+    }
 
     // 初回ディスプレイ情報取得
     RefreshDisplayList();
@@ -389,13 +413,34 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
     // Re-add tray icon when taskbar is recreated
     if (uMsg == WM_TASKBARCREATED) {
         DebugLog("WindowProc: TaskbarCreated - Recreating tray icon.");
-        app->CreateTrayIcon();
+        if (app) app->RecreateTrayIcon();
+        return 0;
     }
 
     if (app) {
         bool cleanupResult = false; // 初期化
         HMENU hMenu = NULL; // ここで hMenu を宣言
         switch (uMsg) {
+        case WM_TIMER:
+            if (wParam == ID_TRAYICON_RETRY_TIMER) {
+                KillTimer(hwnd, ID_TRAYICON_RETRY_TIMER);
+                if (!IsTrayIconVisible(hwnd, /*uID*/ 1)) {
+                    // Retry by recreating once; if still not present, schedule another attempt.
+                    if (app) app->RecreateTrayIcon();
+                    if (!IsTrayIconVisible(hwnd, /*uID*/ 1) && s_trayRetryCount < TRAYICON_RETRY_MAX) {
+                        ++s_trayRetryCount;
+                        StartTrayRetryTimer(hwnd, 500);
+                    } else {
+                        DebugLog("Tray icon retry complete (visible=" +
+                            std::string(IsTrayIconVisible(hwnd,1) ? "true" : "false") +
+                            ", retries=" + std::to_string(s_trayRetryCount) + ").");
+                    }
+                } else {
+                    DebugLog("Tray icon already visible; stopping retries.");
+                }
+                return 0;
+            }
+            break;
         case WM_DISPLAYCHANGE:
             DebugLog("WindowProc: WM_DISPLAYCHANGE - Recreating tray icon.");
             app->RecreateTrayIcon();
