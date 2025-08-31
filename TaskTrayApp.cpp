@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <chrono>
 #include <dbt.h>
+#include <regex>
 
 
 std::filesystem::path GetExecutablePath() {
@@ -148,7 +149,7 @@ void TaskTrayApp::ShowContextMenu() {
         if (DisplaysList.empty()) {
             DebugLog("Error: Display information is not available.");
             MessageBox(hwnd, _T("ディスプレイ情報が取得されていません。"), _T("エラー"), MB_OK | MB_ICONERROR);
-            return;
+            // *** DO NOT return here. Proceed to create a minimal menu. ***
         }
 
         POINT pt;
@@ -190,6 +191,9 @@ void TaskTrayApp::ShowContextMenu() {
 
         TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
         DebugLog("Popup menu tracked.");
+
+        // Recommended by Microsoft so the menu reliably dismisses/focuses
+        PostMessage(hwnd, WM_NULL, 0, 0);
 
         DestroyMenu(hMenu);
         DebugLog("Popup menu destroyed.");
@@ -325,6 +329,51 @@ void TaskTrayApp::MonitorDisplayChanges() {
         SharedMemoryHelper sharedMemoryHelper(this);
         std::string gpuInfo = sharedMemoryHelper.ReadSharedMemory("GPU_INFO");
         DebugLog("MonitorDisplayChanges: Read GPU_INFO: " + gpuInfo);
+
+        // Recompute primary adapter and refresh GPU_INFO if needed
+        {
+            auto gpus = GPUManager::GetInstalledGPUs();
+            bool foundPrimaryAdapter = false;
+            std::string newGpuInfo = "";
+
+            DISPLAY_DEVICE dd;
+            ZeroMemory(&dd, sizeof(dd));
+            dd.cb = sizeof(dd);
+            for (DWORD i = 0; EnumDisplayDevices(NULL, i, &dd, 0); ++i) {
+                if ((dd.StateFlags & DISPLAY_DEVICE_ACTIVE) && (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE)) {
+                    std::string deviceID = ConvertWStringToString(dd.DeviceID);
+                    std::smatch m1, m2;
+                    std::regex vendorRegex("VEN_([0-9A-Fa-f]+)");
+                    std::regex deviceRegex("DEV_([0-9A-Fa-f]+)");
+                    std::string venHex, devHex;
+                    if (std::regex_search(deviceID, m1, vendorRegex) && m1.size() > 1) venHex = m1.str(1);
+                    if (std::regex_search(deviceID, m2, deviceRegex) && m2.size() > 1) devHex = m2.str(1);
+                    unsigned venDec = 0, devDec = 0;
+                    std::stringstream ss;
+                    ss << std::hex << venHex;
+                    ss >> venDec;
+                    ss.clear();
+                    ss << std::hex << devHex;
+                    ss >> devDec;
+
+                    for (const auto& gpu : gpus) {
+                        if ((unsigned)std::stoi(gpu.vendorID) == venDec &&
+                            (unsigned)std::stoi(gpu.deviceID) == devDec) {
+                            newGpuInfo = gpu.vendorID + ":" + gpu.deviceID;
+                            foundPrimaryAdapter = true;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if (foundPrimaryAdapter && !newGpuInfo.empty() && newGpuInfo != gpuInfo) {
+                sharedMemoryHelper.WriteSharedMemory("GPU_INFO", newGpuInfo);
+                DebugLog("MonitorDisplayChanges: Updated GPU_INFO to " + newGpuInfo);
+                gpuInfo = newGpuInfo; // so subsequent code uses the latest
+            }
+        }
 
         std::string gpuVendorID, gpuDeviceID;
         size_t delimiter = gpuInfo.find(":");

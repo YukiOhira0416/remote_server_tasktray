@@ -8,6 +8,10 @@
 #include <algorithm>
 #include "GPUInfo.h"
 #include "DebugLog.h" // 追加
+#include <vector>
+#include <regex>
+#include <sstream>
+#include "StringConversion.h"
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow) {
 
@@ -28,8 +32,48 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     GPUInfo onlyGPU;
 
     // **レジストリと共有メモリの両方にgpuinfoが存在しない場合**
-    for (const auto& gpu : gpus) {
-        onlyGPU = gpu;
+    bool foundPrimaryAdapter = false;
+
+    // Discover primary adapter via EnumDisplayDevices to obtain VEN/DEV (hex) -> decimal
+    DISPLAY_DEVICE dd;
+    ZeroMemory(&dd, sizeof(dd));
+    dd.cb = sizeof(dd);
+    for (DWORD i = 0; EnumDisplayDevices(NULL, i, &dd, 0); ++i) {
+        if ((dd.StateFlags & DISPLAY_DEVICE_ACTIVE) && (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE)) {
+            // dd.DeviceID e.g. "PCI\VEN_10DE&DEV_1F15..."
+            std::string deviceID = ConvertWStringToString(dd.DeviceID);
+            std::smatch m1, m2;
+            std::regex vendorRegex("VEN_([0-9A-Fa-f]+)");
+            std::regex deviceRegex("DEV_([0-9A-Fa-f]+)");
+            std::string venHex, devHex;
+            if (std::regex_search(deviceID, m1, vendorRegex) && m1.size() > 1) venHex = m1.str(1);
+            if (std::regex_search(deviceID, m2, deviceRegex) && m2.size() > 1) devHex = m2.str(1);
+            unsigned venDec = 0, devDec = 0;
+            std::stringstream ss;
+            ss << std::hex << venHex;
+            ss >> venDec;
+            ss.clear();
+            ss << std::hex << devHex;
+            ss >> devDec;
+
+            // Match this primary adapter against GPUManager::GetInstalledGPUs() results
+            for (const auto& gpu : gpus) {
+                if ((unsigned)std::stoi(gpu.vendorID) == venDec &&
+                    (unsigned)std::stoi(gpu.deviceID) == devDec) {
+                    onlyGPU = gpu;
+                    foundPrimaryAdapter = true;
+                    break;
+                }
+            }
+            break; // we only need the primary adapter
+        }
+    }
+
+    // Fallback: if not found, keep previous behavior (use the last enumerated GPU)
+    if (!foundPrimaryAdapter) {
+        for (const auto& gpu : gpus) {
+            onlyGPU = gpu;
+        }
     }
 
     SharedMemoryHelper sharedMemoryHelper(nullptr); // インスタンスを作成
