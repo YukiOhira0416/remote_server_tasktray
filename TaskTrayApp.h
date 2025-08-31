@@ -15,6 +15,7 @@ public:
     int Run();
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     void CreateTrayIcon();
+    void RecreateTrayIcon();
     void ShowContextMenu();
     void UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string>& displays);
     void SelectDisplay(int displayIndex);
