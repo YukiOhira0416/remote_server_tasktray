@@ -10,6 +10,7 @@
 #include <cstring>
 #include <functional>
 #include <algorithm>
+#include <map>
 #include "Utility.h"
 #include <dxgi.h>
 #include <d3d11.h>
@@ -101,73 +102,122 @@ bool DisplayManager::CheckHardwareEncodingSupport(IDXGIAdapter* pAdapter) {
 
 
 std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPU(const std::string& gpuVendorID, const std::string& gpuDeviceID) {
-    std::vector<DisplayInfo> displays; // 修正: std::vector<DisplayInfo> に変更
+    std::vector<DisplayInfo> displays;
     DebugLog("GetDisplaysForGPU: Start - VendorID: " + gpuVendorID + ", DeviceID: " + gpuDeviceID);
 
-    DISPLAY_DEVICE dd;
-    dd.cb = sizeof(dd);
-    int deviceIndex = 0;
+    // Create a map to store port indices from QueryDisplayConfig
+    std::map<std::wstring, int> portIndices;
+    UINT32 pathCount = 0, modeCount = 0;
+    if (GetDisplayConfigBufferSizes(QDC_DATABASE_CURRENT, &pathCount, &modeCount) == ERROR_SUCCESS) {
+        std::vector<DISPLAYCONFIG_PATH_INFO> paths(pathCount);
+        std::vector<DISPLAYCONFIG_MODE_INFO> modes(modeCount);
+        if (QueryDisplayConfig(QDC_DATABASE_CURRENT, &pathCount, paths.data(), &modeCount, modes.data(), nullptr) == ERROR_SUCCESS) {
+            for (UINT32 i = 0; i < pathCount; ++i) {
+                if (paths[i].flags & DISPLAYCONFIG_PATH_ACTIVE) {
+                    DISPLAYCONFIG_TARGET_DEVICE_NAME targetName = {};
+                    targetName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME;
+                    targetName.header.size = sizeof(targetName);
+                    targetName.header.adapterId = paths[i].targetInfo.adapterId;
+                    targetName.header.id = paths[i].targetInfo.id;
+                    if (DisplayConfigGetDeviceInfo(&targetName.header) == ERROR_SUCCESS) {
+                        // Use index i as a stable port index. The key is the unique monitor device path.
+                        portIndices[targetName.monitorDevicePath] = i;
+                    }
+                }
+            }
+        }
+    }
 
-    // 正規表現を使用してベンダーIDとデバイスIDを抽出
+    DISPLAY_DEVICE ddAdapter;
+    ddAdapter.cb = sizeof(ddAdapter);
+    int adapterIndex = 0;
+
     std::regex vendorRegex("VEN_([0-9A-Fa-f]+)");
     std::regex deviceRegex("DEV_([0-9A-Fa-f]+)");
 
-    while (EnumDisplayDevices(NULL, deviceIndex, &dd, 0)) {
-        if (dd.StateFlags & DISPLAY_DEVICE_ACTIVE) {
+    while (EnumDisplayDevices(NULL, adapterIndex, &ddAdapter, 0)) {
+        if (!(ddAdapter.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP)) {
+            adapterIndex++;
+            continue;
+        }
+
+        std::string adapterDeviceIDStr = ConvertWStringToString(ddAdapter.DeviceID);
+        std::smatch vendorMatch, deviceMatch;
+        std::string extractedVendorID, extractedDeviceID;
+        if (std::regex_search(adapterDeviceIDStr, vendorMatch, vendorRegex) && vendorMatch.size() > 1) {
+            extractedVendorID = vendorMatch.str(1);
+        }
+        if (std::regex_search(adapterDeviceIDStr, deviceMatch, deviceRegex) && deviceMatch.size() > 1) {
+            extractedDeviceID = deviceMatch.str(1);
+        }
+
+        unsigned int extractedVendorIDDec = 0, extractedDeviceIDDec = 0;
+        try {
+            if (!extractedVendorID.empty()) extractedVendorIDDec = std::stoul(extractedVendorID, nullptr, 16);
+            if (!extractedDeviceID.empty()) extractedDeviceIDDec = std::stoul(extractedDeviceID, nullptr, 16);
+        } catch (...) { /* ignore conversion errors */ }
+
+        unsigned int targetVendorIDDec = 0, targetDeviceIDDec = 0;
+        try {
+            targetVendorIDDec = std::stoi(gpuVendorID);
+            targetDeviceIDDec = std::stoi(gpuDeviceID);
+        } catch (const std::exception& e) {
+            DebugLog("GetDisplaysForGPU: Failed to convert target GPU IDs to integers: " + std::string(e.what()));
+            adapterIndex++;
+            continue;
+        }
+
+        if (extractedVendorIDDec == targetVendorIDDec && extractedDeviceIDDec == targetDeviceIDDec) {
+            int monitorIndex = 0;
             DISPLAY_DEVICE ddMonitor;
             ddMonitor.cb = sizeof(ddMonitor);
-            if (EnumDisplayDevices(dd.DeviceName, 0, &ddMonitor, 0)) {
-                // ディスプレイが繋がっているGPUのベンダーIDとデバイスIDを取得
-                std::string deviceID = ConvertWStringToString(dd.DeviceID);
-
-                std::smatch vendorMatch, deviceMatch;
-
-                std::string extractedVendorID, extractedDeviceID;
-                if (std::regex_search(deviceID, vendorMatch, vendorRegex) && vendorMatch.size() > 1) {
-                    extractedVendorID = vendorMatch.str(1);
-                }
-                if (std::regex_search(deviceID, deviceMatch, deviceRegex) && deviceMatch.size() > 1) {
-                    extractedDeviceID = deviceMatch.str(1);
-                }
-
-                // 16進数の文字列を10進数に変換
-                unsigned int extractedVendorIDDec = 0, extractedDeviceIDDec = 0;
-                std::stringstream ss;
-                ss << std::hex << extractedVendorID;
-                ss >> extractedVendorIDDec;
-                ss.clear();
-                ss << std::hex << extractedDeviceID;
-                ss >> extractedDeviceIDDec;
-
-                unsigned int gpuVendorIDDec = 0, gpuDeviceIDDec = 0;
-                try {
-                    gpuVendorIDDec = std::stoi(gpuVendorID);
-                    gpuDeviceIDDec = std::stoi(gpuDeviceID);
-                }
-                catch (const std::exception& e) {
-                    DebugLog("GetDisplaysForGPU: Failed to convert GPU IDs to integers: " + std::string(e.what()));
-                    continue;
-                }
-
-                // ベンダーIDとデバイスIDが一致するか確認
-                if (extractedVendorIDDec == gpuVendorIDDec && extractedDeviceIDDec == gpuDeviceIDDec) {
+            while (EnumDisplayDevices(ddAdapter.DeviceName, monitorIndex, &ddMonitor, 0)) {
+                if (ddMonitor.StateFlags & DISPLAY_DEVICE_ACTIVE) {
                     DisplayInfo di;
-                    di.name = ConvertWStringToString(ddMonitor.DeviceID);
+                    di.name = ConvertWStringToString(ddMonitor.DeviceString);
                     di.serialNumber = ConvertWStringToString(ddMonitor.DeviceID);
-                    di.isPrimary = (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
-                    displays.push_back(di); // 修正: DisplayInfo を追加
-                    DebugLog("GetDisplaysForGPU: Found display - Name: " + di.name + ", SerialNumber: " + di.serialNumber + ", IsPrimary: " + std::to_string(di.isPrimary));
+                    di.isPrimary = (ddAdapter.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
+
+                    // Determine port index using QueryDisplayConfig results
+                    std::wstring deviceIdWStr = utf8_to_utf16(di.serialNumber);
+                    auto it = portIndices.find(deviceIdWStr);
+                    if (it != portIndices.end()) {
+                        di.portIndex = it->second;
+                    } else {
+                        // Fallback: parse from ddMonitor.DeviceName (e.g., \\.\DISPLAY1\Monitor0)
+                        std::wstring monitorDeviceName(ddMonitor.DeviceName);
+                        size_t lastDigit = monitorDeviceName.find_last_of(L"0123456789");
+                        if (lastDigit != std::wstring::npos) {
+                            try {
+                                di.portIndex = 100 + std::stoi(monitorDeviceName.substr(lastDigit)); // Add offset to avoid collision
+                            } catch (...) {
+                                di.portIndex = 999; // Should not happen
+                            }
+                        } else {
+                            di.portIndex = 999; // Could not determine
+                        }
+                    }
+                    displays.push_back(di);
+                    DebugLog("GetDisplaysForGPU: Found display - Name: " + di.name + ", Serial: " + di.serialNumber + ", Primary: " + std::to_string(di.isPrimary) + ", Port: " + std::to_string(di.portIndex));
                 }
-            }
-            else {
-                DebugLog("GetDisplaysForGPU: Failed to enumerate display devices for " + ConvertWStringToString(dd.DeviceName));
+                monitorIndex++;
             }
         }
-        deviceIndex++;
+        adapterIndex++;
     }
+
+    // Sort displays: primary first, then by port index
+    std::sort(displays.begin(), displays.end(), [](const DisplayInfo& a, const DisplayInfo& b) {
+        if (a.isPrimary != b.isPrimary) {
+            return a.isPrimary > b.isPrimary;
+        }
+        return a.portIndex < b.portIndex;
+    });
 
     if (displays.empty()) {
         DebugLog("GetDisplaysForGPU: No displays found for GPU VendorID: " + gpuVendorID + ", DeviceID: " + gpuDeviceID);
+    } else {
+        DebugLog("GetDisplaysForGPU: Sorted display list. Primary is: " + displays[0].serialNumber);
     }
 
     return displays;

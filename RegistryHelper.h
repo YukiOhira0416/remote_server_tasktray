@@ -11,6 +11,8 @@ public:
     static std::pair<std::string, std::string> ReadRegistry();
     static bool WriteDISPInfoToRegistry(const std::string& DispInfo);
     static std::vector<std::string> ReadDISPInfoFromRegistry();
+    static bool WriteSelectedDisplaySerial(const std::string& serial);
+    static std::string ReadSelectedDisplaySerial();
 };
 
 #endif
