@@ -2,6 +2,7 @@
 #include "StringConversion.h"
 #include "GPUManager.h"
 #include "DisplayManager.h"
+#include "Utility.h"
 #include "RegistryHelper.h"
 #include "SharedMemoryHelper.h"
 #include <tchar.h>
