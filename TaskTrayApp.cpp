@@ -15,6 +15,13 @@
 #include "DebugLog.h"
 #include "Globals.h"
 #include "Utility.h"
+
+// UI-thread message for tooltip updates
+#ifndef WM_APP
+#define WM_APP 0x8000
+#endif
+#define WM_APP_UPDATE_TOOLTIP (WM_APP + 10)
+
 #include <fstream>
 #include <ctime>
 #include <iomanip>
@@ -181,6 +188,7 @@ void TaskTrayApp::ShowContextMenu() {
         DebugLog("Foreground window set.");
 
         TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+        PostMessage(hwnd, WM_NULL, 0, 0);
         DebugLog("Popup menu tracked.");
 
         DestroyMenu(hMenu);
@@ -281,6 +289,19 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
             // The menu is built on-demand by ShowContextMenu. We just need to receive the signal.
             // The old code here was building and destroying a menu for no reason.
             break;
+        case WM_APP_UPDATE_TOOLTIP: {
+            // lParam carries a pointer to a heap-allocated wide string (std::wstring*)
+            std::wstring* pTip = reinterpret_cast<std::wstring*>(lParam);
+            if (pTip) {
+                // Ensure we set flags that declare szTip is valid on MODIFY
+                app->nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+                lstrcpyn(app->nid.szTip, pTip->c_str(), sizeof(app->nid.szTip) / sizeof(TCHAR));
+                Shell_NotifyIcon(NIM_MODIFY, &app->nid);
+                DebugLog("WindowProc: Tooltip updated on UI thread.");
+                delete pTip; // free heap memory
+            }
+            break;
+        }
         case WM_COMMAND:
             if (LOWORD(wParam) == 1) {//終了ボタンをクリックしたとき
                 DebugLog("WindowProc: WM_COMMAND - Exit command received.");
@@ -404,10 +425,9 @@ void TaskTrayApp::MonitorDisplayChanges() {
             }
 
             // Update tooltip
-            std::wstring tipString = L"GPU & Display Manager - Primary: " + utf8_to_utf16(primaryName);
-            lstrcpyn(nid.szTip, tipString.c_str(), sizeof(nid.szTip) / sizeof(TCHAR));
-            Shell_NotifyIcon(NIM_MODIFY, &nid);
-            DebugLog("MonitorDisplayChanges: Updated tooltip.");
+            std::wstring tip = L"GPU & Display Manager - Primary: " + utf8_to_utf16(primaryName);
+            PostMessage(hwnd, WM_APP_UPDATE_TOOLTIP, 0, reinterpret_cast<LPARAM>(new std::wstring(tip)));
+            DebugLog("MonitorDisplayChanges: Posted message to update tooltip.");
 
             // Notify main thread to update menu
             PostMessage(hwnd, WM_USER + 2, 0, 0);
@@ -470,6 +490,14 @@ void TaskTrayApp::RefreshDisplayList() {
         std::string key = "DISP_INFO_" + std::to_string(i);
         sharedMemoryHelper.WriteSharedMemory(key, newDisplays[i].serialNumber);
     }
+
+    // Write a terminator entry to mark the end, matching the monitor thread
+    std::string termKey = "DISP_INFO_" + std::to_string(newDisplays.size());
+    sharedMemoryHelper.WriteSharedMemory(termKey, "");
+
+    // Set the initial tooltip to the consistent format
+    std::wstring tip = L"GPU & Display Manager - Primary: " + utf8_to_utf16(newDisplays[0].name);
+    PostMessage(hwnd, WM_APP_UPDATE_TOOLTIP, 0, reinterpret_cast<LPARAM>(new std::wstring(tip)));
 
     // Clear existing registry values under the DISP path
     HKEY hKey;
