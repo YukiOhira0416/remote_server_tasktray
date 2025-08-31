@@ -24,6 +24,8 @@
 #include <regex>
 
 
+static const UINT WM_TASKBARCREATED = RegisterWindowMessageW(L"TaskbarCreated");
+
 std::filesystem::path GetExecutablePath() {
     char buffer[MAX_PATH];
     GetModuleFileNameA(NULL, buffer, MAX_PATH);
@@ -203,7 +205,7 @@ void TaskTrayApp::ShowContextMenu() {
     }
 }
 
-void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string> displays) {
+void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string>& displays) {
     DebugLog("UpdateDisplayMenu: Start updating display menu.");
 
     // 既存のメニュー項目を削除
@@ -211,7 +213,11 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string> 
 
     // 現在選択されているディスプレイを取得
     SharedMemoryHelper sharedMemoryHelper(this);
-    std::string selectedDisplaySerial = sharedMemoryHelper.ReadSharedMemory("DISP_INFO");
+    std::string selectedDisplaySerial;
+    // Non-blocking read to avoid UI stalls
+    if (!sharedMemoryHelper.TryReadSharedMemoryNoWait("DISP_INFO", selectedDisplaySerial)) {
+        selectedDisplaySerial.clear();
+    }
     DebugLog("Selected display serial: " + selectedDisplaySerial);
 
     for (size_t i = 0; i < displays.size(); ++i) {
@@ -268,10 +274,20 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
         DebugLog("WindowProc: WM_CREATE - TaskTrayApp instance set.");
     }
 
+    // Re-add tray icon when taskbar is recreated
+    if (uMsg == WM_TASKBARCREATED) {
+        DebugLog("WindowProc: TaskbarCreated - Recreating tray icon.");
+        app->CreateTrayIcon();
+    }
+
     if (app) {
         bool cleanupResult = false; // 初期化
         HMENU hMenu = NULL; // ここで hMenu を宣言
         switch (uMsg) {
+        case WM_DISPLAYCHANGE:
+            DebugLog("WindowProc: WM_DISPLAYCHANGE - Recreating tray icon.");
+            app->CreateTrayIcon();
+            break;
         case WM_USER + 1://タスクトレイアイコンを右クリックしたとき
             if (lParam == WM_RBUTTONUP) {
                 DebugLog("WindowProc: WM_USER + 1 - Right button up.");
