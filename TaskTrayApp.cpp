@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <functional>
 #include <windows.h>
+#include <windowsx.h>
 #include <shellapi.h> // for Shell_NotifyIconGetRect
 #include <vector>
 #include <string>
