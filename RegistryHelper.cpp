@@ -127,3 +127,38 @@ std::vector<std::string> RegistryHelper::ReadDISPInfoFromRegistry() {
 
     return serialNumbers;
 }
+
+bool RegistryHelper::WriteSelectedDisplay(const std::string& serial) {
+    std::lock_guard<std::mutex> lock(registryMutex);
+    HKEY hKey;
+    if (RegCreateKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, NULL, 0, KEY_WRITE | KEY_READ, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        std::wstring wSerial = utf8_to_utf16(serial);
+        if (RegSetValueEx(hKey, L"Selected", 0, REG_SZ, (BYTE*)wSerial.c_str(),
+                          static_cast<DWORD>((wSerial.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
+            DebugLog("WriteSelectedDisplay: Failed to write Selected to registry.");
+            RegCloseKey(hKey);
+            return false;
+        }
+        RegCloseKey(hKey);
+        DebugLog("WriteSelectedDisplay: Successfully wrote Selected to registry.");
+        return true;
+    } else {
+        DebugLog("WriteSelectedDisplay: Failed to create or open registry key.");
+        return false;
+    }
+}
+
+std::string RegistryHelper::ReadSelectedDisplay() {
+    std::lock_guard<std::mutex> lock(registryMutex);
+    HKEY hKey;
+    wchar_t serial[512] = {0};
+    DWORD serialSize = sizeof(serial);
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        if (RegQueryValueEx(hKey, L"Selected", NULL, NULL, (LPBYTE)serial, &serialSize) == ERROR_SUCCESS) {
+            RegCloseKey(hKey);
+            return utf16_to_utf8(serial);
+        }
+        RegCloseKey(hKey);
+    }
+    return "";
+}
