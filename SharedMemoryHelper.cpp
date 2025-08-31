@@ -1,6 +1,7 @@
 ﻿#include "SharedMemoryHelper.h"
 #include "DebugLog.h"
 #include <windows.h>
+#include <regex>
 #include <functional>
 #include <algorithm>
 #include <string>
@@ -223,7 +224,13 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
         data = std::string(static_cast<char*>(pBuf));
 
         if (data.empty()) {
-            DebugLog("ReadSharedMemory: Error - returned empty data for " + name);
+            // Treat empty DISP_INFO_n as normal terminator — no error
+            static const std::wregex dispKey(LR"(^DISP_INFO_\d+$)");
+            if (std::regex_match(std::wstring(name.begin(), name.end()), dispKey)) {
+                DebugLog("ReadSharedMemory: Terminator reached for " + name + " (empty data is expected).");
+            } else {
+                DebugLog("ReadSharedMemory: Error - returned empty data for " + name);
+            }
         }
 
         UnmapViewOfFile(pBuf);
