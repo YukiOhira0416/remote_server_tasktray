@@ -1,4 +1,10 @@
 ﻿#include "TaskTrayApp.h"
+
+// Use an app-range message for tray callbacks (safer than WM_USER+n)
+#ifndef WMAPP_TRAYICON
+#define WMAPP_TRAYICON (WM_APP + 1)
+#endif
+
 #include "StringConversion.h"
 #include "GPUManager.h"
 #include "DisplayManager.h"
@@ -94,6 +100,7 @@ bool TaskTrayApp::Initialize() {
         NULL, NULL, hInstance, this);
 
     if (!hwnd) return false;
+    UpdateWindow(hwnd);
 
     uTaskbarCreatedMsg = RegisterWindowMessage(L"TaskbarCreated");
 
@@ -114,31 +121,38 @@ void TaskTrayApp::CreateTrayIcon() {
     nid.hWnd = hwnd;
     nid.uID = 1;
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-    nid.uCallbackMessage = WM_USER + 1;
+    nid.uCallbackMessage = WMAPP_TRAYICON;  // was WM_USER + 1
     nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     lstrcpy(nid.szTip, _T("GPU & Display Manager"));
-    Shell_NotifyIcon(NIM_ADD, &nid);
-
-    nid.uVersion = NOTIFYICON_VERSION_4;
-    Shell_NotifyIcon(NIM_SETVERSION, &nid);
+    if (!Shell_NotifyIcon(NIM_ADD, &nid)) {
+        DebugLog("CreateTrayIcon: Shell_NotifyIcon(NIM_ADD) failed. GetLastError=" + std::to_string(GetLastError()));
+    } else {
+        nid.uVersion = NOTIFYICON_VERSION_4;
+        if (!Shell_NotifyIcon(NIM_SETVERSION, &nid)) {
+            DebugLog("CreateTrayIcon: Shell_NotifyIcon(NIM_SETVERSION) failed. GetLastError=" + std::to_string(GetLastError()));
+        }
+    }
 }
 
 void TaskTrayApp::RecreateTrayIcon() {
-    // Delete old icon if present and re-add, including tooltip and callback
     Shell_NotifyIcon(NIM_DELETE, &nid);
     ZeroMemory(&nid, sizeof(nid));
     nid.cbSize = sizeof(NOTIFYICONDATA);
     nid.hWnd = hwnd;
     nid.uID = 1;
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-    nid.uCallbackMessage = WM_USER + 1;
+    nid.uCallbackMessage = WMAPP_TRAYICON;  // was WM_USER + 1
     nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     lstrcpy(nid.szTip, _T("GPU & Display Manager"));
-    Shell_NotifyIcon(NIM_ADD, &nid);
+    if (!Shell_NotifyIcon(NIM_ADD, &nid)) {
+        DebugLog("RecreateTrayIcon: Shell_NotifyIcon(NIM_ADD) failed. GetLastError=" + std::to_string(GetLastError()));
+        return;
+    }
 
-    // Opt into modern behavior (ensures reliable tooltip/interaction)
     nid.uVersion = NOTIFYICON_VERSION_4;
-    Shell_NotifyIcon(NIM_SETVERSION, &nid);
+    if (!Shell_NotifyIcon(NIM_SETVERSION, &nid)) {
+        DebugLog("RecreateTrayIcon: Shell_NotifyIcon(NIM_SETVERSION) failed. GetLastError=" + std::to_string(GetLastError()));
+    }
     DebugLog("RecreateTrayIcon: Tray icon recreated and version set.");
 }
 
@@ -287,10 +301,10 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
     if (app) {
         HMENU hMenu = NULL; // ここで hMenu を宣言
         switch (uMsg) {
-        case WM_USER + 1://タスクトレイアイコンを右クリックしたとき
-            if (lParam == WM_RBUTTONUP) {
-                DebugLog("WindowProc: WM_USER + 1 - Right button up.");
-                app->ShowContextMenu(); // グローバル変数 displays を引数として渡す
+        case WMAPP_TRAYICON: // tray callback message
+            if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU) {
+                DebugLog("WindowProc: Tray callback - context menu requested.");
+                app->ShowContextMenu();
             }
             break;
         case WM_USER + 2://ディスプレイの接続状況に変化があったとき
