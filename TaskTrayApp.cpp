@@ -109,6 +109,17 @@ bool TaskTrayApp::Initialize() {
     return true;
 }
 
+void TaskTrayApp::RecreateTrayIcon() {
+    // Safely delete any existing icon first
+    if (nid.cbSize == sizeof(NOTIFYICONDATA) && nid.hWnd && nid.uID != 0) {
+        Shell_NotifyIcon(NIM_DELETE, &nid);
+    }
+
+    // Zero and re-create
+    ZeroMemory(&nid, sizeof(nid));
+    CreateTrayIcon(); // will set cbSize, hWnd, uFlags, etc.
+}
+
 
 void TaskTrayApp::CreateTrayIcon() {
     nid.cbSize = sizeof(NOTIFYICONDATA);
@@ -119,7 +130,18 @@ void TaskTrayApp::CreateTrayIcon() {
     nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     lstrcpy(nid.szTip, _T("GPU & Display Manager"));
 
-    Shell_NotifyIcon(NIM_ADD, &nid);
+    if (!Shell_NotifyIcon(NIM_ADD, &nid)) {
+        DebugLog("CreateTrayIcon: NIM_ADD failed.");
+        return;
+    }
+
+    // Opt-in to modern behavior on Win10/11 so callbacks and coordinates work across monitors.
+    nid.uVersion = NOTIFYICON_VERSION_4;
+    if (!Shell_NotifyIcon(NIM_SETVERSION, &nid)) {
+        DebugLog("CreateTrayIcon: NIM_SETVERSION failed.");
+    } else {
+        DebugLog("CreateTrayIcon: NIM_SETVERSION set to v4.");
+    }
 }
 
 bool TaskTrayApp::Cleanup() {
@@ -286,12 +308,21 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
         switch (uMsg) {
         case WM_DISPLAYCHANGE:
             DebugLog("WindowProc: WM_DISPLAYCHANGE - Recreating tray icon.");
-            app->CreateTrayIcon();
+            app->RecreateTrayIcon();
             break;
-        case WM_USER + 1://タスクトレイアイコンを右クリックしたとき
-            if (lParam == WM_RBUTTONUP) {
-                DebugLog("WindowProc: WM_USER + 1 - Right button up.");
-                app->ShowContextMenu(); // グローバル変数 displays を引数として渡す
+        case WM_DPICHANGED:
+            DebugLog("WindowProc: WM_DPICHANGED - Recreating tray icon.");
+            app->RecreateTrayIcon();
+            break;
+        case WM_SETTINGCHANGE:
+            // Be defensive: display/taskbar settings changes can arrive here.
+            DebugLog("WindowProc: WM_SETTINGCHANGE - Recreating tray icon.");
+            app->RecreateTrayIcon();
+            break;
+        case WM_USER + 1:
+            if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU) {
+                DebugLog("WindowProc: Tray icon context request received.");
+                app->ShowContextMenu();
             }
             break;
         case WM_USER + 2://ディスプレイの接続状況に変化があったとき
