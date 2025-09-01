@@ -495,20 +495,34 @@ void TaskTrayApp::RefreshDisplayList() {
 
     // Update shared memory with the new display list
     sharedMemoryHelper.WriteSharedMemory("DISP_INFO_NUM", std::to_string(newDisplays.size()));
-    std::string primaryDisplaySerial = "";
     for (size_t i = 0; i < newDisplays.size(); ++i) {
         std::string key = "DISP_INFO_" + std::to_string(i + 1);
         sharedMemoryHelper.WriteSharedMemory(key, newDisplays[i].serialNumber);
-        if (newDisplays[i].isPrimary) {
-            primaryDisplaySerial = newDisplays[i].serialNumber;
+    }
+
+    // Determine the initial selection.
+    // First, get the system-wide primary display.
+    std::string systemPrimarySerial = DisplayManager::GetSystemPrimaryDisplaySerial();
+    std::string primaryDisplaySerial = "";
+
+    // Check if the system primary is in our list of displays for the selected GPU.
+    bool primaryFoundInList = false;
+    if (!systemPrimarySerial.empty()) {
+        for (const auto& display : newDisplays) {
+            if (display.serialNumber == systemPrimarySerial) {
+                primaryDisplaySerial = systemPrimarySerial;
+                primaryFoundInList = true;
+                DebugLog("RefreshDisplayList: System primary display is on the selected GPU. Using it for initial selection.");
+                break;
+            }
         }
     }
 
-    // On initial startup, if no primary display is found (e.g., in a headless setup),
-    // select the first display in the list as a fallback.
-    if (primaryDisplaySerial.empty() && !newDisplays.empty()) {
+    // If the system primary wasn't found in our list (or if there's no system primary),
+    // fall back to the first display in the list as per original behavior.
+    if (!primaryFoundInList && !newDisplays.empty()) {
         primaryDisplaySerial = newDisplays[0].serialNumber;
-        DebugLog("RefreshDisplayList: No primary display found. Falling back to the first display.");
+        DebugLog("RefreshDisplayList: System primary not on this GPU or not found. Falling back to the first display.");
     }
 
     // Set initial selection to the primary display
