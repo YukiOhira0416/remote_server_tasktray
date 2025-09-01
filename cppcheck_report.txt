@@ -4,15 +4,12 @@ TaskTrayApp.h:13:5: style: Class 'TaskTrayApp' has a constructor with 1 argument
 SharedMemoryHelper.h:12:5: style: Class 'SharedMemoryHelper' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
     SharedMemoryHelper(TaskTrayApp* app);
     ^
-DisplayManager.cpp:28:58: style: C-style pointer casting [cstyleCast]
+DisplayManager.cpp:29:58: style: C-style pointer casting [cstyleCast]
     if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory))) {
                                                          ^
-DisplayManager.cpp:172:58: style: C-style pointer casting [cstyleCast]
+DisplayManager.cpp:173:58: style: C-style pointer casting [cstyleCast]
     if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory))) {
                                                          ^
-TaskTrayApp.h:19:72: performance: Function parameter 'displays' should be passed by const reference. [passedByValue]
-    void UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string> displays);
-                                                                       ^
 GPUManager.cpp:40:63: style: C-style pointer casting [cstyleCast]
     hr = pDevice->QueryInterface(__uuidof(ID3D11VideoDevice), (void**)&pVideoDevice);
                                                               ^
@@ -103,9 +100,6 @@ TaskTrayApp.h:13:27: note: Function 'TaskTrayApp' argument 1 names different: de
 TaskTrayApp.cpp:32:36: note: Function 'TaskTrayApp' argument 1 names different: declaration 'hInstance' definition 'hInst'.
 TaskTrayApp::TaskTrayApp(HINSTANCE hInst) : hInstance(hInst), hwnd(NULL), running(true) {
                                    ^
-TaskTrayApp.cpp:202:81: performance: Function parameter 'displays' should be passed by const reference. [passedByValue]
-void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string> displays) {
-                                                                                ^
 TaskTrayApp.cpp:398:70: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
                 for (const auto& d : NewDisplays) { if (d.isPrimary) { newSel = d.serialNumber; break; } }
                                                                      ^
@@ -118,7 +112,7 @@ remote_server_tasktray.cpp:18:23: style: C-style pointer casting [cstyleCast]
 remote_server_tasktray.cpp:41:17: style: Consider using std::accumulate algorithm instead of a raw loop. [useStlAlgorithm]
         onlyGPU = gpu;
                 ^
-DisplayManager.cpp:214:0: style: The function 'GetDisplaysForGPU' is never used. [unusedFunction]
+DisplayManager.cpp:215:0: style: The function 'GetDisplaysForGPU' is never used. [unusedFunction]
 std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPU(const std::string& gpuVendorID, const std::string& gpuDeviceID) {
 ^
 RegistryHelper.cpp:147:0: style: The function 'ReadSelectedDisplayFromRegistry' is never used. [unusedFunction]
