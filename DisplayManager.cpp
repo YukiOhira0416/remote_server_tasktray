@@ -100,71 +100,91 @@ bool DisplayManager::CheckHardwareEncodingSupport(IDXGIAdapter* pAdapter) {
 }
 
 
-std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPU(const std::string& gpuVendorID, const std::string& gpuDeviceID) {
-    std::vector<DisplayInfo> displays; // 修正: std::vector<DisplayInfo> に変更
-    DebugLog("GetDisplaysForGPU: Start - VendorID: " + gpuVendorID + ", DeviceID: " + gpuDeviceID);
-
-    DISPLAY_DEVICE dd;
-    dd.cb = sizeof(dd);
-    int deviceIndex = 0;
-
-    // 正規表現を使用してベンダーIDとデバイスIDを抽出
-    std::regex vendorRegex("VEN_([0-9A-Fa-f]+)");
-    std::regex deviceRegex("DEV_([0-9A-Fa-f]+)");
-
-    while (EnumDisplayDevices(NULL, deviceIndex, &dd, 0)) {
-        if (dd.StateFlags & DISPLAY_DEVICE_ACTIVE) {
-            DISPLAY_DEVICE ddMonitor;
-            ddMonitor.cb = sizeof(ddMonitor);
-            if (EnumDisplayDevices(dd.DeviceName, 0, &ddMonitor, 0)) {
-                // ディスプレイが繋がっているGPUのベンダーIDとデバイスIDを取得
-                std::string deviceID = ConvertWStringToString(dd.DeviceID);
-
-                std::smatch vendorMatch, deviceMatch;
-
-                std::string extractedVendorID, extractedDeviceID;
-                if (std::regex_search(deviceID, vendorMatch, vendorRegex) && vendorMatch.size() > 1) {
-                    extractedVendorID = vendorMatch.str(1);
-                }
-                if (std::regex_search(deviceID, deviceMatch, deviceRegex) && deviceMatch.size() > 1) {
-                    extractedDeviceID = deviceMatch.str(1);
-                }
-
-                // 16進数の文字列を10進数に変換
-                unsigned int extractedVendorIDDec = 0, extractedDeviceIDDec = 0;
-                std::stringstream ss;
-                ss << std::hex << extractedVendorID;
-                ss >> extractedVendorIDDec;
-                ss.clear();
-                ss << std::hex << extractedDeviceID;
-                ss >> extractedDeviceIDDec;
-
-                unsigned int gpuVendorIDDec = 0, gpuDeviceIDDec = 0;
-                try {
-                    gpuVendorIDDec = std::stoi(gpuVendorID);
-                    gpuDeviceIDDec = std::stoi(gpuDeviceID);
-                }
-                catch (const std::exception& e) {
-                    DebugLog("GetDisplaysForGPU: Failed to convert GPU IDs to integers: " + std::string(e.what()));
-                    continue;
-                }
-
-                // ベンダーIDとデバイスIDが一致するか確認
-                if (extractedVendorIDDec == gpuVendorIDDec && extractedDeviceIDDec == gpuDeviceIDDec) {
-                    DisplayInfo di;
-                    di.name = ConvertWStringToString(ddMonitor.DeviceID);
-                    di.serialNumber = ConvertWStringToString(ddMonitor.DeviceID);
-                    di.isPrimary = (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
-                    displays.push_back(di); // 修正: DisplayInfo を追加
-                    DebugLog("GetDisplaysForGPU: Found display - Name: " + di.name + ", SerialNumber: " + di.serialNumber + ", IsPrimary: " + std::to_string(di.isPrimary));
-                }
-            }
-            else {
-                DebugLog("GetDisplaysForGPU: Failed to enumerate display devices for " + ConvertWStringToString(dd.DeviceName));
-            }
+// Helper function to enumerate display outputs for a given adapter in port order.
+// This provides a deterministic order based on the physical connection sequence.
+static bool EnumerateOutputsPortOrder(IDXGIAdapter* pAdapter, std::vector<DisplayInfo>& outDisplays) {
+    IDXGIOutput* pOutput = nullptr;
+    for (UINT i = 0; pAdapter->EnumOutputs(i, &pOutput) != DXGI_ERROR_NOT_FOUND; ++i) {
+        DXGI_OUTPUT_DESC desc;
+        if (FAILED(pOutput->GetDesc(&desc))) {
+            DebugLog("EnumerateOutputsPortOrder: Failed to get output description.");
+            pOutput->Release();
+            continue;
         }
-        deviceIndex++;
+
+        MONITORINFOEXW mi;
+        mi.cbSize = sizeof(mi);
+        if (!GetMonitorInfoW(desc.hMonitor, &mi)) {
+            DebugLog("EnumerateOutputsPortOrder: Failed to get monitor info.");
+            pOutput->Release();
+            continue;
+        }
+
+        DISPLAY_DEVICEW ddMonitor = { sizeof(ddMonitor) };
+        ddMonitor.cb = sizeof(ddMonitor);
+        // Use the device name from MONITORINFOEX to get the monitor's device details.
+        if (!EnumDisplayDevicesW(mi.szDevice, 0, &ddMonitor, 0)) {
+            DebugLog("EnumerateOutputsPortOrder: Failed to enumerate display devices for monitor.");
+            pOutput->Release();
+            continue;
+        }
+
+        DisplayInfo di;
+        // Use DeviceID as the unique serial number, as per requirements.
+        di.serialNumber = ConvertWStringToString(ddMonitor.DeviceID);
+        // Use the more user-friendly DeviceString for the name.
+        di.name = ConvertWStringToString(ddMonitor.DeviceString);
+        di.isPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0;
+
+        outDisplays.push_back(di);
+        DebugLog("EnumerateOutputsPortOrder: Found display - Name: " + di.name + ", Serial: " + di.serialNumber + ", Primary: " + std::to_string(di.isPrimary));
+
+        pOutput->Release();
     }
+    return !outDisplays.empty();
+}
+
+std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPU(const std::string& gpuVendorID, const std::string& gpuDeviceID) {
+    std::vector<DisplayInfo> displays;
+    DebugLog("GetDisplaysForGPU: Start (DXGI) - VendorID: " + gpuVendorID + ", DeviceID: " + gpuDeviceID);
+
+    IDXGIFactory* pFactory = nullptr;
+    if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory))) {
+        DebugLog("GetDisplaysForGPU: Failed to create DXGIFactory.");
+        return displays;
+    }
+
+    unsigned int targetVendorID = 0;
+    unsigned int targetDeviceID = 0;
+    try {
+        targetVendorID = std::stoul(gpuVendorID);
+        targetDeviceID = std::stoul(gpuDeviceID);
+    }
+    catch (const std::exception& e) {
+        DebugLog("GetDisplaysForGPU: Failed to convert GPU IDs to integers: " + std::string(e.what()));
+        pFactory->Release();
+        return displays;
+    }
+
+    IDXGIAdapter* pAdapter = nullptr;
+    for (UINT i = 0; pFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND; ++i) {
+        DXGI_ADAPTER_DESC desc;
+        if (FAILED(pAdapter->GetDesc(&desc))) {
+            pAdapter->Release();
+            continue;
+        }
+
+        if (desc.VendorId == targetVendorID && desc.DeviceId == targetDeviceID) {
+            DebugLog("GetDisplaysForGPU: Found matching adapter. Enumerating outputs.");
+            EnumerateOutputsPortOrder(pAdapter, displays);
+            pAdapter->Release();
+            break; // Found the target adapter, no need to continue.
+        }
+
+        pAdapter->Release();
+    }
+
+    pFactory->Release();
 
     if (displays.empty()) {
         DebugLog("GetDisplaysForGPU: No displays found for GPU VendorID: " + gpuVendorID + ", DeviceID: " + gpuDeviceID);
