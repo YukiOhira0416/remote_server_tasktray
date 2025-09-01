@@ -145,7 +145,8 @@ bool OverlayManager::ResolveMonitorInfoBySerial(const std::string& serialUtf8, R
         mi.cbSize = sizeof(mi);
         if (GetMonitorInfoW(outputDesc.Monitor, &mi)) {
             DISPLAY_DEVICEW ddMonitor = { sizeof(ddMonitor) };
-            if (EnumDisplayDevicesW(mi.szDevice, 0, &ddMonitor, EDD_GET_DEVICE_INTERFACE_NAME)) {
+            // IMPORTANT: Use the same flags as when we stored the serials (flags = 0)
+            if (EnumDisplayDevicesW(mi.szDevice, 0, &ddMonitor, 0)) {
                 std::string currentSerial = ConvertWStringToString(ddMonitor.DeviceID);
                 if (currentSerial == serialUtf8) {
                     DebugLog("OverlayManager: Found matching monitor. Serial: " + currentSerial);
