@@ -70,25 +70,25 @@ SharedMemoryHelper.h:17:10: note: Technically the member function 'SharedMemoryH
 TaskTrayApp.h:15:9: performance: inconclusive: Technically the member function 'TaskTrayApp::Run' can be static (but you may consider moving to unnamed namespace). [functionStatic]
     int Run();
         ^
-TaskTrayApp.cpp:509:18: note: Technically the member function 'TaskTrayApp::Run' can be static (but you may consider moving to unnamed namespace).
+TaskTrayApp.cpp:550:18: note: Technically the member function 'TaskTrayApp::Run' can be static (but you may consider moving to unnamed namespace).
 int TaskTrayApp::Run() {
                  ^
 TaskTrayApp.h:15:9: note: Technically the member function 'TaskTrayApp::Run' can be static (but you may consider moving to unnamed namespace).
     int Run();
         ^
-TaskTrayApp.cpp:293:21: style: Condition 'cleanupResult' is always true [knownConditionTrueFalse]
+TaskTrayApp.cpp:297:21: style: Condition 'cleanupResult' is always true [knownConditionTrueFalse]
                 if (cleanupResult) {
                     ^
-TaskTrayApp.cpp:292:45: note: Calling function 'Cleanup' returns 1
+TaskTrayApp.cpp:296:45: note: Calling function 'Cleanup' returns 1
                 cleanupResult = app->Cleanup();
                                             ^
-TaskTrayApp.cpp:292:45: note: Assignment 'cleanupResult=app->Cleanup()', assigned value is 1
+TaskTrayApp.cpp:296:45: note: Assignment 'cleanupResult=app->Cleanup()', assigned value is 1
                 cleanupResult = app->Cleanup();
                                             ^
-TaskTrayApp.cpp:293:21: note: Condition 'cleanupResult' is always true
+TaskTrayApp.cpp:297:21: note: Condition 'cleanupResult' is always true
                 if (cleanupResult) {
                     ^
-TaskTrayApp.cpp:267:14: style: The scope of the variable 'cleanupResult' can be reduced. [variableScope]
+TaskTrayApp.cpp:271:14: style: The scope of the variable 'cleanupResult' can be reduced. [variableScope]
         bool cleanupResult = false; // 初期化
              ^
 TaskTrayApp.cpp:32:36: style: inconclusive: Function 'TaskTrayApp' argument 1 names different: declaration 'hInstance' definition 'hInst'. [funcArgNamesDifferent]
@@ -100,12 +100,18 @@ TaskTrayApp.h:13:27: note: Function 'TaskTrayApp' argument 1 names different: de
 TaskTrayApp.cpp:32:36: note: Function 'TaskTrayApp' argument 1 names different: declaration 'hInstance' definition 'hInst'.
 TaskTrayApp::TaskTrayApp(HINSTANCE hInst) : hInstance(hInst), hwnd(NULL), running(true) {
                                    ^
-TaskTrayApp.cpp:398:70: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+TaskTrayApp.cpp:351:30: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+            if (d.isPrimary) { currentPrimarySerial = d.serialNumber; break; }
+                             ^
+TaskTrayApp.cpp:409:70: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
                 for (const auto& d : NewDisplays) { if (d.isPrimary) { newSel = d.serialNumber; break; } }
                                                                      ^
-TaskTrayApp.cpp:462:30: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
-            if (d.isPrimary) {
-                             ^
+TaskTrayApp.cpp:492:40: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+                if (s == persistedSel) { persistedSelOk = true; break; }
+                                       ^
+TaskTrayApp.cpp:502:34: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+                if (d.isPrimary) {
+                                 ^
 remote_server_tasktray.cpp:18:23: style: C-style pointer casting [cstyleCast]
         SetCtx pSet = (SetCtx)GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetProcessDpiAwarenessContext");
                       ^
@@ -114,9 +120,6 @@ remote_server_tasktray.cpp:41:17: style: Consider using std::accumulate algorith
                 ^
 DisplayManager.cpp:215:0: style: The function 'GetDisplaysForGPU' is never used. [unusedFunction]
 std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPU(const std::string& gpuVendorID, const std::string& gpuDeviceID) {
-^
-RegistryHelper.cpp:147:0: style: The function 'ReadSelectedDisplayFromRegistry' is never used. [unusedFunction]
-std::string RegistryHelper::ReadSelectedDisplayFromRegistry() {
 ^
 remote_server_tasktray.cpp:12:0: style: The function 'WinMain' is never used. [unusedFunction]
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow) {

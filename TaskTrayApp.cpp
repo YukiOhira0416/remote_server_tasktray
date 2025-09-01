@@ -205,6 +205,10 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu, const std::vector<std::string>&
 
     SharedMemoryHelper shm(this);
     std::string selectedSerial = shm.ReadSharedMemory("DISP_INFO");
+    if (selectedSerial.empty()) {
+        selectedSerial = RegistryHelper::ReadSelectedDisplayFromRegistry();
+        DebugLog("UpdateDisplayMenu: SHM returned empty; using registry SelectedSerial: " + selectedSerial);
+    }
     DebugLog("UpdateDisplayMenu: Selected=" + selectedSerial);
 
     for (size_t i = 0; i < displays.size(); ++i) {
@@ -340,6 +344,13 @@ void TaskTrayApp::MonitorDisplayChanges() {
         auto NewDisplays = DisplayManager::GetDisplaysForGPUByPortOrder(gpuVendorID, gpuDeviceID);
         DebugLog("MonitorDisplayChanges: Retrieved new display list (port-ordered).");
 
+        // Track primary changes even if list is the same
+        static std::string lastPrimarySerial;
+        std::string currentPrimarySerial;
+        for (const auto& d : NewDisplays) {
+            if (d.isPrimary) { currentPrimarySerial = d.serialNumber; break; }
+        }
+
         std::vector<std::string> Displays_Before = RegistryHelper::ReadDISPInfoFromRegistry();
 
 		std::vector<std::string> Displays_After;
@@ -407,6 +418,17 @@ void TaskTrayApp::MonitorDisplayChanges() {
             // メインスレッドにメニューの更新を指示
             PostMessage(hwnd, WM_USER + 2, 0, 0);
         }
+        // If the list is identical but OS primary changed, do not overwrite selection.
+        // Just refresh menu/tooltip so UI remains consistent.
+        if (Displays_Before == Displays_After) {
+            if (lastPrimarySerial != currentPrimarySerial) {
+                DebugLog("MonitorDisplayChanges: Primary changed (list unchanged). Preserving selection.");
+                // Optional: update tooltip to reflect current selected display
+                // (Selection remains in SHM 'DISP_INFO'; do not modify it here.)
+                PostMessage(hwnd, WM_USER + 2, 0, 0);
+            }
+        }
+        lastPrimarySerial = currentPrimarySerial;
     }
 }
 
@@ -456,19 +478,38 @@ void TaskTrayApp::RefreshDisplayList() {
             }
         }
 
-        // Set DISP_INFO to OS primary (startup requirement)
-        bool primaryDisplayFound = false;
-        for (const auto& d : newDisplays) {
-            if (d.isPrimary) {
-                shm.WriteSharedMemory("DISP_INFO", d.serialNumber);
-                DebugLog("RefreshDisplayList: Wrote DISP_INFO=" + d.serialNumber);
-                primaryDisplayFound = true;
-                break;
+        // Prefer persisted selection if available; else fall back to OS primary
+        std::vector<std::string> orderedSerials;
+        orderedSerials.reserve(count);
+        for (int i = 0; i < count; ++i) {
+            orderedSerials.push_back(newDisplays[i].serialNumber);
+        }
+
+        std::string persistedSel = RegistryHelper::ReadSelectedDisplayFromRegistry();
+        bool persistedSelOk = false;
+        if (!persistedSel.empty()) {
+            for (const auto& s : orderedSerials) {
+                if (s == persistedSel) { persistedSelOk = true; break; }
             }
         }
 
-        if (!primaryDisplayFound) {
-            DebugLog("RefreshDisplayList: No primary display found.");
+        if (persistedSelOk) {
+            shm.WriteSharedMemory("DISP_INFO", persistedSel);
+            DebugLog("RefreshDisplayList: Restored selection from registry: " + persistedSel);
+        } else {
+            bool primaryDisplayFound = false;
+            for (const auto& d : newDisplays) {
+                if (d.isPrimary) {
+                    shm.WriteSharedMemory("DISP_INFO", d.serialNumber);
+                    (void)RegistryHelper::WriteSelectedDisplayToRegistry(d.serialNumber);
+                    DebugLog("RefreshDisplayList: No persisted selection. Using OS primary: " + d.serialNumber);
+                    primaryDisplayFound = true;
+                    break;
+                }
+            }
+            if (!primaryDisplayFound) {
+                DebugLog("RefreshDisplayList: No primary display found at startup.");
+            }
         }
 
         HKEY hKey;
