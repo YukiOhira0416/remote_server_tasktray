@@ -1,4 +1,7 @@
 ﻿#include <windows.h>
+// Additions for primary-adapter detection
+#include <dxgi.h>
+#pragma comment(lib, "dxgi.lib")
 #include "TaskTrayApp.h"
 #include "GPUManager.h"
 #include "RegistryHelper.h"
@@ -8,6 +11,57 @@
 #include <algorithm>
 #include "GPUInfo.h"
 #include "DebugLog.h" // 追加
+
+// Finds the DXGI adapter (vendor/device) that owns the OS primary monitor.
+// Returns true on success and fills vendorID/deviceID (decimal strings).
+static bool GetPrimaryAdapterVendorDevice(std::string& outVendorID, std::string& outDeviceID) {
+    IDXGIFactory* pFactory = nullptr;
+    HRESULT hr = CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory);
+    if (FAILED(hr) || !pFactory) {
+        DebugLog("GetPrimaryAdapterVendorDevice: CreateDXGIFactory failed.");
+        return false;
+    }
+
+    bool found = false;
+    IDXGIAdapter* pAdapter = nullptr;
+
+    for (UINT ai = 0; pFactory->EnumAdapters(ai, &pAdapter) != DXGI_ERROR_NOT_FOUND; ++ai) {
+        DXGI_ADAPTER_DESC ad;
+        if (FAILED(pAdapter->GetDesc(&ad))) {
+            pAdapter->Release();
+            continue;
+        }
+
+        // Enumerate outputs in port order and look for the primary monitor flag.
+        IDXGIOutput* pOutput = nullptr;
+        for (UINT oi = 0; pAdapter->EnumOutputs(oi, &pOutput) != DXGI_ERROR_NOT_FOUND; ++oi) {
+            DXGI_OUTPUT_DESC od;
+            if (SUCCEEDED(pOutput->GetDesc(&od))) {
+                MONITORINFOEXW mi;
+                mi.cbSize = sizeof(mi);
+                if (GetMonitorInfoW(od.Monitor, &mi) && (mi.dwFlags & MONITORINFOF_PRIMARY)) {
+                    outVendorID = std::to_string(ad.VendorId);
+                    outDeviceID = std::to_string(ad.DeviceId);
+                    found = true;
+                    pOutput->Release();
+                    break;
+                }
+            }
+            pOutput->Release();
+        }
+
+        pAdapter->Release();
+        if (found) break;
+    }
+
+    pFactory->Release();
+    if (!found) {
+        DebugLog("GetPrimaryAdapterVendorDevice: OS primary adapter not found (falling back).");
+    } else {
+        DebugLog("GetPrimaryAdapterVendorDevice: Found OS primary adapter.");
+    }
+    return found;
+}
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow) {
     // Set Per-Monitor DPI Awareness to handle different DPIs across monitors.
@@ -48,11 +102,26 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     // レジストリと共有メモリの情報を比較
     auto registry = RegistryHelper::ReadRegistry();
     DebugLog("WinMain: Read registry - VendorID: " + registry.first + ", DeviceID: " + registry.second);
+    // ------------------------------------------------------------
+    // Determine which GPU owns the OS primary display at startup.
+    // If found, prefer that adapter; otherwise fall back to existing logic.
+    // ------------------------------------------------------------
     GPUInfo onlyGPU;
+    std::string primaryVendorID, primaryDeviceID;
+    bool hasPrimaryAdapter = GetPrimaryAdapterVendorDevice(primaryVendorID, primaryDeviceID); // uses DXGI
 
-    // **レジストリと共有メモリの両方にgpuinfoが存在しない場合**
-    for (const auto& gpu : gpus) {
-        onlyGPU = gpu;
+    if (hasPrimaryAdapter) {
+        // Prefer the adapter that owns the OS primary display
+        onlyGPU.vendorID = primaryVendorID;
+        onlyGPU.deviceID = primaryDeviceID;
+        // Optional: name can remain empty or you may fill it by scanning GPUManager::GetInstalledGPUs if needed.
+    } else {
+        // Fallback to previous behavior: pick the single/last enumerated GPU
+        // **レジストリと共有メモリの両方にgpuinfoが存在しない場合**
+        auto gpus = GPUManager::GetInstalledGPUs();
+        for (const auto& gpu : gpus) {
+            onlyGPU = gpu;
+        }
     }
 
     SharedMemoryHelper sharedMemoryHelper(nullptr); // インスタンスを作成
