@@ -14,6 +14,7 @@ struct DisplayInfo {
 class DisplayManager {
 public:
     static std::vector<GPUInfo> GetInstalledGPUs(); // 追加
+    static std::vector<DisplayInfo> GetDisplaysForGPUByPortOrder(const std::string& gpuVendorID, const std::string& gpuDeviceID);
     static std::vector<DisplayInfo> GetDisplaysForGPU(const std::string& gpuVendorID, const std::string& gpuDeviceID);
     static bool CheckHardwareEncodingSupport(IDXGIAdapter* pAdapter);
 };

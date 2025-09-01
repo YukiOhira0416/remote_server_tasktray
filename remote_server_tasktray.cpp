@@ -11,6 +11,15 @@
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow) {
 
+    // At the top of WinMain, before CreateWindow:
+    HMODULE shcore = LoadLibraryW(L"Shcore.dll");
+    if (shcore) {
+        typedef BOOL (WINAPI *SetCtx)(DPI_AWARENESS_CONTEXT);
+        SetCtx pSet = (SetCtx)GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetProcessDpiAwarenessContext");
+        if (pSet) { pSet(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); }
+        FreeLibrary(shcore);
+    }
+
     // 搭載されているGPUを取得
     auto gpus = GPUManager::GetInstalledGPUs();
     int gpuCount = static_cast<int>(gpus.size()); // 適切にキャスト

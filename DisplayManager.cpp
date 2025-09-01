@@ -100,6 +100,117 @@ bool DisplayManager::CheckHardwareEncodingSupport(IDXGIAdapter* pAdapter) {
 }
 
 
+// NEW: Returns displays strictly in GPU port order using DXGI outputs.
+std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPUByPortOrder(const std::string& gpuVendorID, const std::string& gpuDeviceID) {
+    std::vector<DisplayInfo> ordered;
+    DebugLog("GetDisplaysForGPUByPortOrder: Start - VendorID=" + gpuVendorID + " DeviceID=" + gpuDeviceID);
+
+    // 1. Get all displays for the target GPU, but unordered, and store them in a map.
+    // The map key will be the DeviceName (e.g., L"\\\\.\\DISPLAY1").
+    std::map<std::wstring, DisplayInfo> displaysOnGpuMap;
+    DISPLAY_DEVICEW dd;
+    dd.cb = sizeof(dd);
+    int deviceIndex = 0;
+
+    while (EnumDisplayDevicesW(NULL, deviceIndex, &dd, 0)) {
+        if (dd.StateFlags & DISPLAY_DEVICE_ACTIVE) {
+            // Check if this adapter matches the target GPU
+            std::string deviceIDString = ConvertWStringToString(dd.DeviceID);
+            std::regex vendorRegex("VEN_([0-9A-Fa-f]+)");
+            std::regex deviceRegex("DEV_([0-9A-Fa-f]+)");
+            std::smatch vendorMatch, deviceMatch;
+            std::string extractedVendorID, extractedDeviceID;
+            if (std::regex_search(deviceIDString, vendorMatch, vendorRegex) && vendorMatch.size() > 1) {
+                extractedVendorID = vendorMatch.str(1);
+            }
+            if (std::regex_search(deviceIDString, deviceMatch, deviceRegex) && deviceMatch.size() > 1) {
+                extractedDeviceID = deviceMatch.str(1);
+            }
+
+            unsigned int extractedVendorIDDec = 0, extractedDeviceIDDec = 0;
+            if (!extractedVendorID.empty()) {
+                std::stringstream ss;
+                ss << std::hex << extractedVendorID;
+                ss >> extractedVendorIDDec;
+            }
+            if (!extractedDeviceID.empty()) {
+                std::stringstream ss;
+                ss.clear();
+                ss << std::hex << extractedDeviceID;
+                ss >> extractedDeviceIDDec;
+            }
+
+            unsigned int targetVendorIDDec = 0, targetDeviceIDDec = 0;
+            try {
+                targetVendorIDDec = std::stoi(gpuVendorID);
+                targetDeviceIDDec = std::stoi(gpuDeviceID);
+            } catch (const std::exception& e) {
+                DebugLog("GetDisplaysForGPUByPortOrder: Failed to convert GPU IDs to integers: " + std::string(e.what()));
+                continue;
+            }
+
+
+            if (extractedVendorIDDec == targetVendorIDDec && extractedDeviceIDDec == targetDeviceIDDec) {
+                // This adapter is the one we want. Get its monitors.
+                DISPLAY_DEVICEW ddMonitor;
+                ddMonitor.cb = sizeof(ddMonitor);
+                if (EnumDisplayDevicesW(dd.DeviceName, 0, &ddMonitor, 0)) {
+                    DisplayInfo di;
+                    di.name = ConvertWStringToString(ddMonitor.DeviceID);
+                    di.serialNumber = ConvertWStringToString(ddMonitor.DeviceID); // Brief says DeviceID is used for serial
+                    di.isPrimary = (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
+                    displaysOnGpuMap[dd.DeviceName] = di;
+                    DebugLog("GetDisplaysForGPUByPortOrder: Found potential display on correct GPU - DeviceName: " + ConvertWStringToString(dd.DeviceName) + ", Serial: " + di.serialNumber);
+                }
+            }
+        }
+        deviceIndex++;
+    }
+
+
+    IDXGIFactory* pFactory = nullptr;
+    if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory))) {
+        DebugLog("GetDisplaysForGPUByPortOrder: Failed to create DXGIFactory.");
+        return ordered;
+    }
+
+    // Find the matching adapter
+    IDXGIAdapter* pAdapter = nullptr;
+    for (UINT ai = 0; pFactory->EnumAdapters(ai, &pAdapter) != DXGI_ERROR_NOT_FOUND; ++ai) {
+        DXGI_ADAPTER_DESC ad{};
+        if (FAILED(pAdapter->GetDesc(&ad))) { pAdapter->Release(); continue; }
+
+        if (std::to_string(ad.VendorId) == gpuVendorID && std::to_string(ad.DeviceId) == gpuDeviceID) {
+            // Enumerate outputs in index order = port order
+            for (UINT oi = 0; ; ++oi) {
+                IDXGIOutput* pOut = nullptr;
+                if (pAdapter->EnumOutputs(oi, &pOut) == DXGI_ERROR_NOT_FOUND) break;
+
+                DXGI_OUTPUT_DESC od{};
+                if (SUCCEEDED(pOut->GetDesc(&od))) {
+                    // Map this output to our existing display list entry by DeviceName (e.g., "\\\\.\\DISPLAY1")
+                    auto it = displaysOnGpuMap.find(od.DeviceName);
+                    if (it != displaysOnGpuMap.end()) {
+                        ordered.push_back(it->second);
+                        DebugLog("GetDisplaysForGPUByPortOrder: Mapped output " + std::to_string(oi) + " to display " + it->second.serialNumber);
+                    }
+                }
+                pOut->Release();
+            }
+            pAdapter->Release();
+            break;
+        }
+        pAdapter->Release();
+    }
+    pFactory->Release();
+
+    if (ordered.empty()) {
+        DebugLog("GetDisplaysForGPUByPortOrder: No displays found or failed to order them.");
+    }
+    return ordered;
+}
+
+
 std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPU(const std::string& gpuVendorID, const std::string& gpuDeviceID) {
     std::vector<DisplayInfo> displays; // 修正: std::vector<DisplayInfo> に変更
     DebugLog("GetDisplaysForGPU: Start - VendorID: " + gpuVendorID + ", DeviceID: " + gpuDeviceID);
