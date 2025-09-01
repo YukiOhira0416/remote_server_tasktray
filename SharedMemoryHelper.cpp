@@ -1,4 +1,5 @@
 ﻿#include "SharedMemoryHelper.h"
+#include "StringConversion.h"
 #include "DebugLog.h"
 #include <windows.h>
 #include <functional>
@@ -20,14 +21,6 @@ std::mutex sharedMemoryMutex;
 
 // SharedMemoryHelper クラスのコンストラクタ
 SharedMemoryHelper::SharedMemoryHelper(TaskTrayApp* app) : app(app) {}
-
-// std::string を std::wstring に変換する関数
-std::wstring ConvertStringToWString(const std::string& str) {
-    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), NULL, 0);
-    std::wstring wstrTo(size_needed, 0);
-    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), &wstrTo[0], size_needed);
-    return wstrTo;
-}
 
 // 現在のユーザーのSIDを取得する関数
 std::string GetCurrentUserSID() {
