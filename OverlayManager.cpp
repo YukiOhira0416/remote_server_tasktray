@@ -6,6 +6,7 @@
 #include <dwmapi.h>
 #include <vector>
 #include <dxgi.h>
+#include <ShellScalingApi.h>
 
 #pragma comment(lib, "dwmapi.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -55,7 +56,7 @@ void OverlayManager::ShowNumberForSerial(int number, const std::string& serialUt
     RECT monRect;
     HMONITOR hMon;
     UINT dpi;
-    if (ResolveMonitorInfoBySerial(serialUtf8, monRect, hMon, &dpi)) {
+    if (ResolveMonitorInfoBySerial(serialUtf8, monRect, hMon, dpi)) {
         // We can just use one window and move it around.
         if (overlayWindows_.empty()) {
             overlayWindows_.resize(1);
