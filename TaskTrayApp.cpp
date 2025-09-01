@@ -24,6 +24,10 @@
 #include <dbt.h>
 
 
+// Register the TaskbarCreated message. This is sent when the taskbar is created (e.g., after an explorer.exe crash).
+// We need to handle this to re-add our icon.
+UINT WM_TASKBARCREATED = RegisterWindowMessage(_T("TaskbarCreated"));
+
 std::filesystem::path GetExecutablePath() {
     char buffer[MAX_PATH];
     GetModuleFileNameA(NULL, buffer, MAX_PATH);
@@ -79,10 +83,6 @@ bool TaskTrayApp::Initialize() {
             }
         }
     }
-
-// Register the TaskbarCreated message. This is sent when the taskbar is created (e.g., after an explorer.exe crash).
-// We need to handle this to re-add our icon.
-UINT WM_TASKBARCREATED = RegisterWindowMessage(_T("TaskbarCreated"));
 
     // ここから既存のコード
     WNDCLASS wc = { 0 };
@@ -259,9 +259,6 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
     // The menu check mark will be updated the next time it's opened,
     // as UpdateDisplayMenu reads the latest selection from DISP_INFO.
 }
-
-// Forward declare the message ID
-extern UINT WM_TASKBARCREATED;
 
 LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     TaskTrayApp* app = nullptr;
