@@ -20,6 +20,7 @@ public:
     void SelectDisplay(int displayIndex);
     void MonitorDisplayChanges();
     void RefreshDisplayList();
+    void UpdateTooltip();
     bool Cleanup();
 
 
@@ -29,6 +30,7 @@ private:
     NOTIFYICONDATA nid;
     std::thread monitorThread;
     std::atomic<bool> running = true;
+    UINT taskbarCreatedMsg = 0;
 };
 
 #endif // TASKTRAYAPP_H

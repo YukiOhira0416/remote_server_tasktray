@@ -11,6 +11,9 @@
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow) {
 
+    // best-effort; ignore failure
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
     // 搭載されているGPUを取得
     auto gpus = GPUManager::GetInstalledGPUs();
     int gpuCount = static_cast<int>(gpus.size()); // 適切にキャスト
