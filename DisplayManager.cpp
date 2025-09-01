@@ -193,6 +193,31 @@ std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPU(const std::string& gp
     return displays;
 }
 
+// Callback function for EnumDisplayMonitors to find the primary monitor
+BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
+    MONITORINFOEXW mi;
+    mi.cbSize = sizeof(mi);
+    if (GetMonitorInfoW(hMonitor, &mi)) {
+        if (mi.dwFlags & MONITORINFOF_PRIMARY) {
+            // This is the primary monitor. Store its serial number.
+            std::string* primarySerial = reinterpret_cast<std::string*>(dwData);
+            DISPLAY_DEVICEW ddMonitor = { sizeof(ddMonitor) };
+            ddMonitor.cb = sizeof(ddMonitor);
+            if (EnumDisplayDevicesW(mi.szDevice, 0, &ddMonitor, 0)) {
+                *primarySerial = ConvertWStringToString(ddMonitor.DeviceID);
+                return FALSE; // Stop enumeration since we found the primary
+            }
+        }
+    }
+    return TRUE; // Continue enumeration
+}
+
+std::string DisplayManager::GetSystemPrimaryDisplaySerial() {
+    std::string primarySerial = "";
+    EnumDisplayMonitors(NULL, NULL, MonitorEnumProc, reinterpret_cast<LPARAM>(&primarySerial));
+    DebugLog("GetSystemPrimaryDisplaySerial: Found system primary display serial: " + (primarySerial.empty() ? "None" : primarySerial));
+    return primarySerial;
+}
 
 
 
