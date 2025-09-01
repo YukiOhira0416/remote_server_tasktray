@@ -44,7 +44,7 @@ GPUManager.cpp:93:5: style: Consider using std::all_of or std::none_of algorithm
 OverlayManager.h:32:10: performance: inconclusive: Technically the member function 'OverlayManager::ResolveMonitorInfoBySerial' can be static (but you may consider moving to unnamed namespace). [functionStatic]
     bool ResolveMonitorInfoBySerial(const std::string& serialUtf8, RECT& outRect, HMONITOR& outMon, UINT& outDpi);
          ^
-OverlayManager.cpp:91:22: note: Technically the member function 'OverlayManager::ResolveMonitorInfoBySerial' can be static (but you may consider moving to unnamed namespace).
+OverlayManager.cpp:92:22: note: Technically the member function 'OverlayManager::ResolveMonitorInfoBySerial' can be static (but you may consider moving to unnamed namespace).
 bool OverlayManager::ResolveMonitorInfoBySerial(const std::string& serialUtf8, RECT& outRect, HMONITOR& outMon, UINT& outDpi) {
                      ^
 OverlayManager.h:32:10: note: Technically the member function 'OverlayManager::ResolveMonitorInfoBySerial' can be static (but you may consider moving to unnamed namespace).
@@ -53,13 +53,13 @@ OverlayManager.h:32:10: note: Technically the member function 'OverlayManager::R
 OverlayManager.h:36:10: performance: inconclusive: Technically the member function 'OverlayManager::DrawOverlayContent' can be static (but you may consider moving to unnamed namespace). [functionStatic]
     void DrawOverlayContent(HDC hdc, const RECT& clientRect, int number, UINT dpi);
          ^
-OverlayManager.cpp:236:22: note: Technically the member function 'OverlayManager::DrawOverlayContent' can be static (but you may consider moving to unnamed namespace).
+OverlayManager.cpp:237:22: note: Technically the member function 'OverlayManager::DrawOverlayContent' can be static (but you may consider moving to unnamed namespace).
 void OverlayManager::DrawOverlayContent(HDC hdc, const RECT& clientRect, int number, UINT dpi) {
                      ^
 OverlayManager.h:36:10: note: Technically the member function 'OverlayManager::DrawOverlayContent' can be static (but you may consider moving to unnamed namespace).
     void DrawOverlayContent(HDC hdc, const RECT& clientRect, int number, UINT dpi);
          ^
-OverlayManager.cpp:115:58: style: C-style pointer casting [cstyleCast]
+OverlayManager.cpp:116:58: style: C-style pointer casting [cstyleCast]
     if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory))) {
                                                          ^
 RegistryHelper.cpp:21:57: style: C-style pointer casting [cstyleCast]

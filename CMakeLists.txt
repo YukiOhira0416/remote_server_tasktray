@@ -74,6 +74,7 @@ target_link_libraries(${PROJECT_NAME}
     odbccp32
     dxgi
     d3d11
+    Shcore
 )
 
 # コンパイラ固有の設定
