@@ -318,7 +318,7 @@ void TaskTrayApp::MonitorDisplayChanges() {
                     wchar_t serialBuf[512];
                     DWORD serialBufSize = sizeof(serialBuf);
                     if (RegQueryValueEx(hKeyRead, valueName, NULL, NULL, (LPBYTE)serialBuf, &serialBufSize) == ERROR_SUCCESS) {
-                        oldDisplaySerials.push_back(utf16_to_utf8(serialBuf));
+                        oldDisplaySerials.push_back(ConvertWStringToString(serialBuf));
                     }
                 }
                 valueNameSize = 256;
@@ -540,7 +540,8 @@ void TaskTrayApp::UpdateTooltip() {
         }
     }
 
-    lstrcpyn(nid.szTip, utf8_to_utf16(tooltipText).c_str(), sizeof(nid.szTip) / sizeof(nid.szTip[0]));
+    std::wstring tooltipW = ConvertStringToWString(tooltipText);
+    lstrcpynW(nid.szTip, tooltipW.c_str(), sizeof(nid.szTip) / sizeof(nid.szTip[0]));
     nid.uFlags |= NIF_TIP;
 
     if (!Shell_NotifyIcon(NIM_MODIFY, &nid)) {
