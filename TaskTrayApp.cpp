@@ -15,6 +15,7 @@
 #include <CommCtrl.h>
 #include "DebugLog.h"
 #include "Globals.h"
+#include "OverlayManager.h"
 #include <fstream>
 #include <ctime>
 #include <iomanip>
@@ -125,6 +126,9 @@ void TaskTrayApp::CreateTrayIcon() {
 }
 
 bool TaskTrayApp::Cleanup() {
+    // Clean up overlay windows
+    OverlayManager::Instance().Cleanup();
+
     // タスクトレイアイコンを削除
     Shell_NotifyIcon(NIM_DELETE, &nid);
 
@@ -266,6 +270,8 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
         CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
         app = reinterpret_cast<TaskTrayApp*>(pCreate->lpCreateParams);
         SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app));
+        // Initialize the OverlayManager singleton
+        OverlayManager::Instance().Initialize(app->hInstance, hwnd);
     }
     else {
         app = reinterpret_cast<TaskTrayApp*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
@@ -321,9 +327,41 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
 
         case WM_DISPLAYCHANGE:
             DebugLog("WindowProc: WM_DISPLAYCHANGE received. Posting UI refresh message.");
+            // Hide any active overlays in case the menu is open during a display change.
+            OverlayManager::Instance().HideAll();
             // Display configuration changed. Post a message to ourselves to update the UI.
             // The background thread will handle the logic, this just updates the tooltip.
             PostMessage(app->hwnd, WM_USER + 2, 0, 0);
+            break;
+
+        case WM_MENUSELECT:
+        {
+            UINT cmdId = LOWORD(wParam);
+            UINT flags = HIWORD(wParam);
+
+            if ((flags & MF_HILITE) && !(flags & MF_POPUP)) {
+                if (cmdId >= 100 && cmdId < 200) { // Display items are in this range
+                    int displayIndex = (cmdId - 100) + 1;
+                    SharedMemoryHelper smh(app);
+                    std::string key = "DISP_INFO_" + std::to_string(displayIndex);
+                    std::string serial = smh.ReadSharedMemory(key);
+                    if (!serial.empty()) {
+                        OverlayManager::Instance().ShowNumberForSerial(displayIndex, serial);
+                    } else {
+                        OverlayManager::Instance().HideAll();
+                    }
+                } else {
+                    // Not a display item, hide the overlay
+                    OverlayManager::Instance().HideAll();
+                }
+            }
+            break;
+        }
+
+        case WM_EXITMENULOOP:
+        case WM_UNINITMENUPOPUP:
+            // Hide overlay when the menu is closed for any reason
+            OverlayManager::Instance().HideAll();
             break;
 
         case WM_COMMAND:
