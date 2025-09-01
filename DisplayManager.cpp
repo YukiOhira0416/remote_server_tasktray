@@ -1,5 +1,6 @@
 #include "DisplayManager.h"
 #include "StringConversion.h"
+#include <map>
 #include <windows.h>
 #include <setupapi.h>
 #include <devguid.h>
