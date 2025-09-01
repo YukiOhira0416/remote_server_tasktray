@@ -6,7 +6,9 @@
 #include "Globals.h"
 #include <mutex>
 
-// 排他処理用のミューテックス
+#include <vector>
+
+// Mutex for thread-safe registry access
 static std::mutex registryMutex;
 
 bool RegistryHelper::WriteRegistry(const std::string& vendorID, const std::string& deviceID) {
@@ -65,32 +67,27 @@ std::pair<std::string, std::string> RegistryHelper::ReadRegistry() {
     return { "", "" };
 }
 
-bool RegistryHelper::WriteDISPInfoToRegistry(const std::string& DISPInfo) {
+bool RegistryHelper::WriteDISPInfoToRegistryAt(int index, const std::string& serial) {
     std::lock_guard<std::mutex> lock(registryMutex);
 
     HKEY hKey;
-    if (RegCreateKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, NULL, 0, KEY_WRITE | KEY_READ, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+    if (RegCreateKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        // Key name is "SerialNumber" + 1-based index.
+        std::wstring keyName = L"SerialNumber" + std::to_wstring(index);
+        std::wstring wSerial = utf8_to_utf16(serial);
 
-        // キー名を作成
-        std::wstring keyName = L"SerialNumber" + std::to_wstring(serialNumberIndex);
-        std::wstring wDISPInfo = utf8_to_utf16(DISPInfo);
-
-        // レジストリに書き込む
-        if (RegSetValueEx(hKey, keyName.c_str(), 0, REG_SZ, (BYTE*)wDISPInfo.c_str(), static_cast<DWORD>((wDISPInfo.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
-            DebugLog("WriteDISPInfoToRegistry: Failed to write SerialNumber to registry.");
+        if (RegSetValueEx(hKey, keyName.c_str(), 0, REG_SZ, (BYTE*)wSerial.c_str(), static_cast<DWORD>((wSerial.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
+            DebugLog("WriteDISPInfoToRegistryAt: Failed to write SerialNumber to registry for index " + std::to_string(index));
             RegCloseKey(hKey);
             return false;
         }
 
-        // 連番をインクリメント
-        serialNumberIndex++;
-
         RegCloseKey(hKey);
-        DebugLog("WriteDISPInfoToRegistry: Successfully wrote SerialNumber to registry.");
+        DebugLog("WriteDISPInfoToRegistryAt: Successfully wrote SerialNumber " + serial + " to index " + std::to_string(index));
         return true;
     }
     else {
-        DebugLog("WriteDISPInfoToRegistry: Failed to create or open registry key.");
+        DebugLog("WriteDISPInfoToRegistryAt: Failed to create or open registry key.");
         return false;
     }
 }
@@ -102,28 +99,110 @@ std::vector<std::string> RegistryHelper::ReadDISPInfoFromRegistry() {
     std::vector<std::string> serialNumbers;
 
     if (RegOpenKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        DWORD valueCount = 0;
-        RegQueryInfoKey(hKey, NULL, NULL, NULL, NULL, NULL, NULL, &valueCount, NULL, NULL, NULL, NULL);
-
-        for (DWORD i = 0; i < valueCount; ++i) {
-            wchar_t valueName[256];
-            DWORD valueNameSize = sizeof(valueName) / sizeof(valueName[0]);
+        for (int i = 1; ; ++i) {
+            std::wstring keyName = L"SerialNumber" + std::to_wstring(i);
             wchar_t serialNumber[256];
             DWORD serialSize = sizeof(serialNumber);
 
-            if (RegEnumValue(hKey, i, valueName, &valueNameSize, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
-                if (RegQueryValueEx(hKey, valueName, NULL, NULL, (LPBYTE)serialNumber, &serialSize) == ERROR_SUCCESS) {
-                    serialNumbers.push_back(utf16_to_utf8(serialNumber));
-                }
+            LSTATUS status = RegQueryValueEx(hKey, keyName.c_str(), NULL, NULL, (LPBYTE)serialNumber, &serialSize);
+
+            if (status == ERROR_SUCCESS) {
+                serialNumbers.push_back(utf16_to_utf8(serialNumber));
+            }
+            else if (status == ERROR_FILE_NOT_FOUND) {
+                // This is the termination condition: we've read all sequential keys.
+                break;
+            }
+            else {
+                // Some other error occurred.
+                DebugLog("ReadDISPInfoFromRegistry: Error reading registry value for key " + utf16_to_utf8(keyName));
+                break;
             }
         }
-
         RegCloseKey(hKey);
-        DebugLog("ReadDISPInfoFromRegistry: Successfully read SerialNumbers from registry.");
+        DebugLog("ReadDISPInfoFromRegistry: Successfully read " + std::to_string(serialNumbers.size()) + " serial numbers from registry.");
     }
     else {
         DebugLog("ReadDISPInfoFromRegistry: Failed to open registry key.");
     }
 
     return serialNumbers;
+}
+
+bool RegistryHelper::WriteSelectedSerialToRegistry(const std::string& serial) {
+    std::lock_guard<std::mutex> lock(registryMutex);
+
+    HKEY hKey;
+    if (RegCreateKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        std::wstring wSerial = utf8_to_utf16(serial);
+        if (RegSetValueEx(hKey, L"SelectedSerial", 0, REG_SZ, (BYTE*)wSerial.c_str(), static_cast<DWORD>((wSerial.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
+            DebugLog("WriteSelectedSerialToRegistry: Failed to write SelectedSerial to registry.");
+            RegCloseKey(hKey);
+            return false;
+        }
+        RegCloseKey(hKey);
+        DebugLog("WriteSelectedSerialToRegistry: Successfully wrote SelectedSerial: " + serial);
+        return true;
+    }
+    else {
+        DebugLog("WriteSelectedSerialToRegistry: Failed to create or open registry key.");
+        return false;
+    }
+}
+
+std::string RegistryHelper::ReadSelectedSerialFromRegistry() {
+    std::lock_guard<std::mutex> lock(registryMutex);
+
+    HKEY hKey;
+    std::string selectedSerial = "";
+
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        wchar_t serialBuffer[256];
+        DWORD bufferSize = sizeof(serialBuffer);
+        if (RegQueryValueEx(hKey, L"SelectedSerial", NULL, NULL, (LPBYTE)serialBuffer, &bufferSize) == ERROR_SUCCESS) {
+            selectedSerial = utf16_to_utf8(serialBuffer);
+        }
+        else {
+            DebugLog("ReadSelectedSerialFromRegistry: Failed to read SelectedSerial from registry or it does not exist.");
+        }
+        RegCloseKey(hKey);
+    }
+    else {
+        DebugLog("ReadSelectedSerialFromRegistry: Failed to open registry key.");
+    }
+    return selectedSerial;
+}
+
+bool RegistryHelper::ClearDISPInfoFromRegistry() {
+    std::lock_guard<std::mutex> lock(registryMutex);
+
+    HKEY hKey;
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, REG_PATH_DISP, 0, KEY_ALL_ACCESS, &hKey) != ERROR_SUCCESS) {
+        DebugLog("ClearDISPInfoFromRegistry: Key does not exist or cannot be opened, nothing to clear.");
+        return true;
+    }
+
+    // To avoid issues with enumeration while deleting, get all value names first.
+    std::vector<std::wstring> valueNames;
+    DWORD i = 0;
+    wchar_t valueName[256];
+    DWORD valueNameSize = _countof(valueName);
+    while (RegEnumValue(hKey, i++, valueName, &valueNameSize, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+        valueNames.push_back(valueName);
+        valueNameSize = _countof(valueName); // Reset size for next call
+    }
+
+    bool all_deleted = true;
+    for (const auto& name : valueNames) {
+        if (RegDeleteValue(hKey, name.c_str()) != ERROR_SUCCESS) {
+            DebugLog("ClearDISPInfoFromRegistry: Failed to delete registry value: " + utf16_to_utf8(name));
+            all_deleted = false;
+        }
+    }
+
+    RegCloseKey(hKey);
+    if (all_deleted) {
+        DebugLog("ClearDISPInfoFromRegistry: Successfully cleared all display info values.");
+    }
+    return all_deleted;
 }
