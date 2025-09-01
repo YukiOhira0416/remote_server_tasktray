@@ -1,5 +1,6 @@
 ﻿#include "TaskTrayApp.h"
 #include "StringConversion.h"
+#include "Utility.h"
 #include "GPUManager.h"
 #include "DisplayManager.h"
 #include "RegistryHelper.h"

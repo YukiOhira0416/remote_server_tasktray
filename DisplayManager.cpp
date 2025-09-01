@@ -114,7 +114,7 @@ static bool EnumerateOutputsPortOrder(IDXGIAdapter* pAdapter, std::vector<Displa
 
         MONITORINFOEXW mi;
         mi.cbSize = sizeof(mi);
-        if (!GetMonitorInfoW(desc.hMonitor, &mi)) {
+        if (!GetMonitorInfoW(desc.Monitor, &mi)) {
             DebugLog("EnumerateOutputsPortOrder: Failed to get monitor info.");
             pOutput->Release();
             continue;
