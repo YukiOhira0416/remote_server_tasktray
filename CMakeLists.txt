@@ -28,6 +28,7 @@ set(SOURCES
     SharedMemoryHelper.cpp
     StringConversion.cpp
     Utility.cpp
+    OverlayManager.cpp
 )
 
 # ヘッダーファイル
@@ -46,6 +47,7 @@ set(HEADERS
     framework.h
     targetver.h
     Resource.h
+    OverlayManager.h
 )
 
 # リソースファイル
