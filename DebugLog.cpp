@@ -25,7 +25,11 @@ void DebugLog(const std::string& message) {
     // 実行ファイルのパスを取得
     char exePath[MAX_PATH];
     GetModuleFileNameA(NULL, exePath, MAX_PATH);
-    std::filesystem::path logFilePath = std::filesystem::path(exePath).remove_filename() / "debuglog_tasktray.log";
+    std::filesystem::path buildDir = std::filesystem::path(exePath).remove_filename();
+    std::filesystem::path logFilePath = buildDir / "Debug" / "debuglog_tasktray.log";
+    
+    // Debugディレクトリが存在しない場合は作成
+    std::filesystem::create_directories(buildDir / "Debug");
 
     // ログファイルにメッセージを出力（排他処理）
     std::lock_guard<std::mutex> lock(logMutex);
