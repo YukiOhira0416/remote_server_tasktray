@@ -463,6 +463,15 @@ void TaskTrayApp::MonitorDisplayChanges() {
             }
         }
 
+        // Detect if any new display appeared (plugged in)
+        bool additionDetected = false;
+        for (const auto& newSerial : newDisplaySerials) {
+            if (std::find(oldDisplaySerials.begin(), oldDisplaySerials.end(), newSerial) == oldDisplaySerials.end()) {
+                additionDetected = true;
+                break;
+            }
+        }
+
         // Get the last known selected display from the registry
         std::string lastSelectedSerial = RegistryHelper::ReadSelectedSerialFromRegistry();
         std::string newSelectedSerial = "";
@@ -526,9 +535,9 @@ void TaskTrayApp::MonitorDisplayChanges() {
             sharedMemoryHelper.WriteSharedMemory("DISP_INFO", newSelectedSerial);
         }
 
-        // Pulse DISP_INFO_RE=1 for 2 seconds on unplug or OS primary change, then reset to 0
-        if (removalDetected || primaryChanged) {
-            DebugLog("MonitorDisplayChanges: Unplug or OS primary change. Pulsing DISP_INFO_RE to 1 for 2 seconds.");
+        // Pulse DISP_INFO_RE=1 for 2 seconds on unplug or plug-in, then reset to 0
+        if (removalDetected || additionDetected) {
+            DebugLog("MonitorDisplayChanges: Plug/unplug detected. Pulsing DISP_INFO_RE to 1 for 2 seconds.");
             sharedMemoryHelper.WriteSharedMemory("DISP_INFO_RE", "1");
             TaskTrayApp* appPtr = this;
             std::thread([appPtr]() {
