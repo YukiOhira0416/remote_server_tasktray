@@ -100,9 +100,17 @@ bool DisplayManager::CheckHardwareEncodingSupport(IDXGIAdapter* pAdapter) {
 }
 
 
-// Helper function to enumerate display outputs for a given adapter in port order.
-// This provides a deterministic order based on the physical connection sequence.
+// Helper function to enumerate display outputs for a given adapter.
+// We sort results by Windows display number ("\\\\.\\DISPLAY<n>") to keep
+// menu numbering stable regardless of primary display changes.
 static bool EnumerateOutputsPortOrder(IDXGIAdapter* pAdapter, std::vector<DisplayInfo>& outDisplays) {
+    struct TempDisplay {
+        int displayNumber; // parsed from mi.szDevice or desc.DeviceName (DISPLAY<n>)
+        DisplayInfo info;
+    };
+
+    std::vector<TempDisplay> temp;
+
     IDXGIOutput* pOutput = nullptr;
     for (UINT i = 0; pAdapter->EnumOutputs(i, &pOutput) != DXGI_ERROR_NOT_FOUND; ++i) {
         DXGI_OUTPUT_DESC desc;
@@ -112,7 +120,7 @@ static bool EnumerateOutputsPortOrder(IDXGIAdapter* pAdapter, std::vector<Displa
             continue;
         }
 
-        MONITORINFOEXW mi;
+        MONITORINFOEXW mi{};
         mi.cbSize = sizeof(mi);
         if (!GetMonitorInfoW(desc.Monitor, &mi)) {
             DebugLog("EnumerateOutputsPortOrder: Failed to get monitor info.");
@@ -129,19 +137,45 @@ static bool EnumerateOutputsPortOrder(IDXGIAdapter* pAdapter, std::vector<Displa
             continue;
         }
 
+        // Parse Windows display number from device name. Expected like: "\\\\.\\DISPLAY1".
+        int displayNumber = 0;
+        try {
+            std::wregex re(LR"(DISPLAY(\d+))");
+            std::wcmatch m;
+            if (std::regex_search(mi.szDevice, m, re) && m.size() >= 2) {
+                displayNumber = std::stoi(m[1].str());
+            }
+        } catch (...) {
+            displayNumber = 0;
+        }
+        if (displayNumber <= 0) {
+            // Fallback to the DXGI enumeration index + 1
+            displayNumber = static_cast<int>(i) + 1;
+        }
+
         DisplayInfo di;
-        // Use DeviceID as the unique serial number, as per requirements.
-        di.serialNumber = ConvertWStringToString(ddMonitor.DeviceID);
-        // Use the more user-friendly DeviceString for the name.
+        di.serialNumber = ConvertWStringToString(ddMonitor.DeviceID); // unique id
         di.name = ConvertWStringToString(ddMonitor.DeviceString);
         di.isPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0;
 
-        outDisplays.push_back(di);
-        DebugLog("EnumerateOutputsPortOrder: Found display - Name: " + di.name + ", Serial: " + di.serialNumber + ", Primary: " + std::to_string(di.isPrimary));
+        temp.push_back({ displayNumber, di });
+        DebugLog("EnumerateOutputsPortOrder: Found display - DevName: " + ConvertWStringToString(mi.szDevice)
+            + ", ParsedNo: " + std::to_string(displayNumber)
+            + ", Name: " + di.name + ", Serial: " + di.serialNumber
+            + ", Primary: " + std::to_string(di.isPrimary));
 
         pOutput->Release();
     }
-    return !outDisplays.empty();
+
+    if (temp.empty()) return false;
+
+    std::sort(temp.begin(), temp.end(), [](const TempDisplay& a, const TempDisplay& b) {
+        return a.displayNumber < b.displayNumber;
+    });
+
+    outDisplays.reserve(temp.size());
+    for (const auto& t : temp) outDisplays.push_back(t.info);
+    return true;
 }
 
 std::vector<DisplayInfo> DisplayManager::GetDisplaysForGPU(const std::string& gpuVendorID, const std::string& gpuDeviceID) {

@@ -220,8 +220,8 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
     std::string selectedDisplaySerial = sharedMemoryHelper.ReadSharedMemory("DISP_INFO");
     DebugLog("UpdateDisplayMenu: Currently selected display serial: " + selectedDisplaySerial);
 
-    for (int i = 1; i <= numDisplays; ++i) {
-        std::string key = "DISP_INFO_" + std::to_string(i);
+    for (int idx = 0; idx < numDisplays; ++idx) {
+        std::string key = "DISP_INFO_" + std::to_string(idx);
         std::string currentDisplaySerial = sharedMemoryHelper.ReadSharedMemory(key);
 
         UINT flags = MF_STRING;
@@ -229,11 +229,11 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
             flags |= MF_CHECKED;
         }
 
-        std::wstring displayName = L"Display " + std::to_wstring(i);
-        UINT commandId = 100 + (i - 1); // Menu command IDs are 0-indexed.
+        std::wstring displayName = L"Display " + std::to_wstring(idx + 1);
+        UINT commandId = 100 + idx; // Menu command IDs are 0-indexed.
 
         if (!AppendMenu(hMenu, flags, commandId, displayName.c_str())) {
-            DebugLog("UpdateDisplayMenu: Failed to add menu item for Display " + std::to_string(i));
+            DebugLog("UpdateDisplayMenu: Failed to add menu item for Display " + std::to_string(idx + 1));
         }
     }
 
@@ -241,14 +241,13 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
 }
 
 void TaskTrayApp::SelectDisplay(int displayIndex) {
-    // The displayIndex is 0-based from the menu, corresponding to DISP_INFO_{index+1}
-    int dispInfoIndex = displayIndex + 1;
+    // displayIndex is 0-based from the menu and maps to DISP_INFO_{index}
     DebugLog("SelectDisplay: User selected display at index " + std::to_string(displayIndex));
 
     SharedMemoryHelper sharedMemoryHelper(this);
 
-    // Read the serial number for the selected index from shared memory
-    std::string key = "DISP_INFO_" + std::to_string(dispInfoIndex);
+    // Read the serial number for the selected index from shared memory (0-based)
+    std::string key = "DISP_INFO_" + std::to_string(displayIndex);
     std::string selectedSerial = sharedMemoryHelper.ReadSharedMemory(key);
 
     if (selectedSerial.empty()) {
@@ -263,7 +262,7 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
     DebugLog("SelectDisplay: New display selected. Serial: " + selectedSerial);
 
     // Update the tray icon tooltip to reflect the new selection
-    std::wstring newTooltip = L"Display Manager - Selected: Display " + std::to_wstring(dispInfoIndex);
+    std::wstring newTooltip = L"Display Manager - Selected: Display " + std::to_wstring(displayIndex + 1);
     UpdateTrayTooltip(newTooltip);
 
     // The menu check mark will be updated the next time it's opened,
@@ -311,10 +310,10 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
             }
 
             int selectedIndex = -1;
-            for (int i = 1; i <= numDisplays; ++i) {
-                std::string key = "DISP_INFO_" + std::to_string(i);
+            for (int idx = 0; idx < numDisplays; ++idx) {
+                std::string key = "DISP_INFO_" + std::to_string(idx);
                 if (sharedMemoryHelper.ReadSharedMemory(key) == selectedSerial) {
-                    selectedIndex = i;
+                    selectedIndex = idx + 1; // human-friendly 1-based label
                     break;
                 }
             }
@@ -347,12 +346,13 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
 
             if ((flags & MF_HILITE) && !(flags & MF_POPUP)) {
                 if (cmdId >= 100 && cmdId < 200) { // Display items are in this range
-                    int displayIndex = (cmdId - 100) + 1;
+                    int idx0 = (cmdId - 100);      // 0-based index for shared memory
+                    int overlayNumber = idx0 + 1;  // 1-based number for display label
                     SharedMemoryHelper smh(app);
-                    std::string key = "DISP_INFO_" + std::to_string(displayIndex);
+                    std::string key = "DISP_INFO_" + std::to_string(idx0);
                     std::string serial = smh.ReadSharedMemory(key);
                     if (!serial.empty()) {
-                        OverlayManager::Instance().ShowNumberForSerial(displayIndex, serial);
+                        OverlayManager::Instance().ShowNumberForSerial(overlayNumber, serial);
                     } else {
                         OverlayManager::Instance().HideAll();
                     }
@@ -487,49 +487,35 @@ void TaskTrayApp::MonitorDisplayChanges() {
             }
         }
 
-        // Build orderedDisplays depending on OS primary change
-        std::vector<DisplayInfo> orderedDisplays;
+        // Decide newSelectedSerial. The indexed list remains strictly in port order.
         if (primaryChanged) {
-            // Try to find the new OS primary within current GPU outputs
+            // Force selection to the new primary (within same GPU assumption)
             auto itPrimary = std::find_if(newDisplays.begin(), newDisplays.end(), [](const DisplayInfo& d) { return d.isPrimary; });
             if (itPrimary != newDisplays.end()) {
-                // Primary is on this GPU: reorder to [primary + rest] and force selection to primary
-                orderedDisplays.push_back(*itPrimary);
-                for (const auto& d : newDisplays) {
-                    if (d.serialNumber != itPrimary->serialNumber) orderedDisplays.push_back(d);
-                }
                 newSelectedSerial = itPrimary->serialNumber;
-                DebugLog("MonitorDisplayChanges: OS primary changed. Reordered list with primary first and set selection to primary.");
-            } else {
-                // OS primary moved to another GPU: keep port order and preserve selection if possible
-                orderedDisplays = newDisplays;
-                if (selectionStillExists) {
-                    newSelectedSerial = lastSelectedSerial;
-                    DebugLog("MonitorDisplayChanges: OS primary changed (different GPU). Preserving selection.");
-                } else if (!newDisplays.empty()) {
-                    newSelectedSerial = newDisplays[0].serialNumber;
-                    DebugLog("MonitorDisplayChanges: Selection missing after OS primary change. Falling back to first output.");
-                }
+                DebugLog("MonitorDisplayChanges: OS primary changed. Set selection to primary.");
+            } else if (selectionStillExists) {
+                newSelectedSerial = lastSelectedSerial;
+            } else if (!newDisplays.empty()) {
+                newSelectedSerial = newDisplays[0].serialNumber;
             }
         } else {
-            // No primary change: keep port order and preserve selection when possible
-            orderedDisplays = newDisplays;
+            // Preserve user selection when possible; on unplug, prefer primary else first
             if (selectionStillExists) {
                 newSelectedSerial = lastSelectedSerial;
             } else {
-                // Selection disappeared (likely unplug). Prefer primary, else first
                 auto itPrimary = std::find_if(newDisplays.begin(), newDisplays.end(), [](const DisplayInfo& d) { return d.isPrimary; });
                 if (itPrimary != newDisplays.end()) newSelectedSerial = itPrimary->serialNumber;
                 else if (!newDisplays.empty()) newSelectedSerial = newDisplays[0].serialNumber;
             }
         }
 
-        // Now, update everything: shared memory and registry
+        // Now, update everything: shared memory and registry (port order only)
         // Shared Memory
-        sharedMemoryHelper.WriteSharedMemory("DISP_INFO_NUM", std::to_string(orderedDisplays.size()));
-        for (size_t i = 0; i < orderedDisplays.size(); ++i) {
-            std::string key = "DISP_INFO_" + std::to_string(i + 1);
-            sharedMemoryHelper.WriteSharedMemory(key, orderedDisplays[i].serialNumber);
+        sharedMemoryHelper.WriteSharedMemory("DISP_INFO_NUM", std::to_string(newDisplays.size()));
+        for (size_t i = 0; i < newDisplays.size(); ++i) {
+            std::string key = "DISP_INFO_" + std::to_string(i);
+            sharedMemoryHelper.WriteSharedMemory(key, newDisplays[i].serialNumber);
         }
         if (!newSelectedSerial.empty()) {
             sharedMemoryHelper.WriteSharedMemory("DISP_INFO", newSelectedSerial);
@@ -547,10 +533,10 @@ void TaskTrayApp::MonitorDisplayChanges() {
             }).detach();
         }
 
-        // Registry
+        // Registry (SerialNumber1..n in port order)
         RegistryHelper::ClearDISPInfoFromRegistry();
-        for (size_t i = 0; i < orderedDisplays.size(); ++i) {
-            RegistryHelper::WriteDISPInfoToRegistryAt(i + 1, orderedDisplays[i].serialNumber);
+        for (size_t i = 0; i < newDisplays.size(); ++i) {
+            RegistryHelper::WriteDISPInfoToRegistryAt(i + 1, newDisplays[i].serialNumber);
         }
         if (!newSelectedSerial.empty()) {
             RegistryHelper::WriteSelectedSerialToRegistry(newSelectedSerial);
@@ -589,32 +575,15 @@ void TaskTrayApp::RefreshDisplayList() {
         return;
     }
 
-    // Get displays in port order
+    // Get displays sorted by Windows display number (DISPLAY1, DISPLAY2, ...)
     std::vector<DisplayInfo> newDisplays = DisplayManager::GetDisplaysForGPU(gpuVendorID, gpuDeviceID);
     DebugLog("RefreshDisplayList: Found " + std::to_string(newDisplays.size()) + " displays.");
 
-    // Reorder list so that primary display (if any) appears first, followed by the rest in port order
-    std::vector<DisplayInfo> orderedDisplays;
-    {
-        // Find primary
-        auto itPrimary = std::find_if(newDisplays.begin(), newDisplays.end(), [](const DisplayInfo& d) { return d.isPrimary; });
-        if (itPrimary != newDisplays.end()) {
-            orderedDisplays.push_back(*itPrimary);
-            for (const auto& d : newDisplays) {
-                if (d.serialNumber != itPrimary->serialNumber) {
-                    orderedDisplays.push_back(d);
-                }
-            }
-        } else {
-            orderedDisplays = newDisplays; // No explicit primary found; keep port order
-        }
-    }
-
-    // Update shared memory with the new (possibly reordered) display list
-    sharedMemoryHelper.WriteSharedMemory("DISP_INFO_NUM", std::to_string(orderedDisplays.size()));
-    for (size_t i = 0; i < orderedDisplays.size(); ++i) {
-        std::string key = "DISP_INFO_" + std::to_string(i + 1);
-        sharedMemoryHelper.WriteSharedMemory(key, orderedDisplays[i].serialNumber);
+    // Update shared memory with the display list (in Windows display-number order)
+    sharedMemoryHelper.WriteSharedMemory("DISP_INFO_NUM", std::to_string(newDisplays.size()));
+    for (size_t i = 0; i < newDisplays.size(); ++i) {
+        std::string key = "DISP_INFO_" + std::to_string(i);
+        sharedMemoryHelper.WriteSharedMemory(key, newDisplays[i].serialNumber);
     }
 
     // Determine the initial selection.
@@ -652,8 +621,8 @@ void TaskTrayApp::RefreshDisplayList() {
 
         // Also update the tooltip
         int selectedIndex = -1;
-        for (size_t i = 0; i < orderedDisplays.size(); ++i) {
-            if (orderedDisplays[i].serialNumber == primaryDisplaySerial) {
+        for (size_t i = 0; i < newDisplays.size(); ++i) {
+            if (newDisplays[i].serialNumber == primaryDisplaySerial) {
                 selectedIndex = i + 1;
                 break;
             }
@@ -664,10 +633,10 @@ void TaskTrayApp::RefreshDisplayList() {
         }
     }
 
-    // Update the registry with the new (possibly reordered) display list
+    // Update the registry with the display list (Windows display-number order)
     RegistryHelper::ClearDISPInfoFromRegistry();
-    for (size_t i = 0; i < orderedDisplays.size(); ++i) {
-        RegistryHelper::WriteDISPInfoToRegistryAt(i + 1, orderedDisplays[i].serialNumber);
+    for (size_t i = 0; i < newDisplays.size(); ++i) {
+        RegistryHelper::WriteDISPInfoToRegistryAt(i + 1, newDisplays[i].serialNumber);
     }
 
     DebugLog("RefreshDisplayList: Display list refresh complete.");
