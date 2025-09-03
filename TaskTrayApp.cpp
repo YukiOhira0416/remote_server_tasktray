@@ -106,6 +106,12 @@ bool TaskTrayApp::Initialize() {
     // 初回ディスプレイ情報取得
     RefreshDisplayList();
 
+    // Initialize unplug-notification flag (DISP_INFO_RE) to 0
+    {
+        SharedMemoryHelper sharedMemoryHelper(this);
+        sharedMemoryHelper.WriteSharedMemory("DISP_INFO_RE", "0");
+    }
+
     // ディスプレイの接続・切断を監視するスレッドを起動
     monitorThread = std::thread(&TaskTrayApp::MonitorDisplayChanges, this);
 
@@ -421,6 +427,14 @@ void TaskTrayApp::MonitorDisplayChanges() {
             continue;
         }
 
+        // Get current OS primary monitor serial and detect change
+        std::string currentSystemPrimary = DisplayManager::GetSystemPrimaryDisplaySerial();
+        bool primaryChanged = false;
+        if (!currentSystemPrimary.empty() && currentSystemPrimary != lastSystemPrimarySerial) {
+            primaryChanged = true;
+            lastSystemPrimarySerial = currentSystemPrimary;
+        }
+
         // Get current display list from hardware
         auto newDisplays = DisplayManager::GetDisplaysForGPU(gpuVendorID, gpuDeviceID);
 
@@ -433,12 +447,21 @@ void TaskTrayApp::MonitorDisplayChanges() {
             newDisplaySerials.push_back(display.serialNumber);
         }
 
-        // Only proceed if the display topology has actually changed
-        if (oldDisplaySerials == newDisplaySerials) {
+        // Only proceed if the display topology changed, or OS primary changed
+        if (oldDisplaySerials == newDisplaySerials && !primaryChanged) {
             continue;
         }
 
-        DebugLog("MonitorDisplayChanges: Detected display topology change.");
+        DebugLog("MonitorDisplayChanges: Detected topology or OS primary change.");
+
+        // Detect if any known display disappeared (unplugged)
+        bool removalDetected = false;
+        for (const auto& oldSerial : oldDisplaySerials) {
+            if (std::find(newDisplaySerials.begin(), newDisplaySerials.end(), oldSerial) == newDisplaySerials.end()) {
+                removalDetected = true;
+                break;
+            }
+        }
 
         // Get the last known selected display from the registry
         std::string lastSelectedSerial = RegistryHelper::ReadSelectedSerialFromRegistry();
@@ -483,6 +506,18 @@ void TaskTrayApp::MonitorDisplayChanges() {
         }
         if (!newSelectedSerial.empty()) {
             sharedMemoryHelper.WriteSharedMemory("DISP_INFO", newSelectedSerial);
+        }
+
+        // Pulse DISP_INFO_RE=1 for 2 seconds on unplug or OS primary change, then reset to 0
+        if (removalDetected || primaryChanged) {
+            DebugLog("MonitorDisplayChanges: Unplug or OS primary change. Pulsing DISP_INFO_RE to 1 for 2 seconds.");
+            sharedMemoryHelper.WriteSharedMemory("DISP_INFO_RE", "1");
+            TaskTrayApp* appPtr = this;
+            std::thread([appPtr]() {
+                Sleep(2000);
+                SharedMemoryHelper helper(appPtr);
+                helper.WriteSharedMemory("DISP_INFO_RE", "0");
+            }).detach();
         }
 
         // Registry
@@ -541,6 +576,8 @@ void TaskTrayApp::RefreshDisplayList() {
     // Determine the initial selection.
     // First, get the system-wide primary display.
     std::string systemPrimarySerial = DisplayManager::GetSystemPrimaryDisplaySerial();
+    // Cache last known OS primary monitor serial for change detection in the monitor thread
+    lastSystemPrimarySerial = systemPrimarySerial;
     std::string primaryDisplaySerial = "";
 
     // Check if the system primary is in our list of displays for the selected GPU.

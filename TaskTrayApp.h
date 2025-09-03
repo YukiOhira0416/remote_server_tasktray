@@ -31,6 +31,7 @@ private:
     NOTIFYICONDATA nid;
     std::thread monitorThread;
     std::atomic<bool> running = true;
+    std::string lastSystemPrimarySerial; // Tracks last OS primary monitor serial
 };
 
 #endif // TASKTRAYAPP_H
