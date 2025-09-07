@@ -64,6 +64,7 @@ static bool GetPrimaryAdapterVendorDevice(std::string& outVendorID, std::string&
 }
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow) {
+    InitializeLogger();
     // Set Per-Monitor DPI Awareness to handle different DPIs across monitors.
     // This is crucial for ensuring the tray menu and tooltips are positioned correctly.
     HMODULE user32 = LoadLibrary(L"user32.dll");
