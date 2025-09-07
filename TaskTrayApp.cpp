@@ -45,44 +45,47 @@ bool TaskTrayApp::Initialize() {
     std::filesystem::path exePath = GetExecutablePath();
     std::filesystem::path logFilePath = exePath / "debuglog_tasktray.log";
 
-    // debuglog.log をバックアップして削除する
+    // バックアップ処理
     if (std::filesystem::exists(logFilePath)) {
-        // 現在の日時を取得
-        std::time_t t = std::time(nullptr);
+        // タイムスタンプ付きのバックアップファイル名を作成
+        auto now = std::chrono::system_clock::now();
+        std::time_t t = std::chrono::system_clock::to_time_t(now);
         std::tm tm;
         localtime_s(&tm, &t);
-
-        // 日付文字列を作成
         std::ostringstream oss;
         oss << std::put_time(&tm, "%Y%m%d%H%M%S");
-        std::string timestamp = oss.str();
-
-        // バックアップファイル名を作成
-        std::string backupFileName = timestamp + "_debuglog_tasktray.log.bak";
+        std::string backupFileName = oss.str() + "_debuglog_tasktray.log.back";
         std::filesystem::path backupFilePath = exePath / backupFileName;
 
-        // ファイルをリネーム
-        std::filesystem::rename(logFilePath, backupFilePath);
+        // ログファイルをリネームしてバックアップ
+        try {
+            std::filesystem::rename(logFilePath, backupFilePath);
+        }
+        catch (const std::filesystem::filesystem_error& e) {
+            // エラー処理
+        }
     }
 
-    // 3ヶ月以上経過したバックアップファイルを削除する
-    auto now = std::chrono::system_clock::now();
+    // 古いバックアップを削除（5つまで保持）
+    const std::string backupSuffix = "_debuglog_tasktray.log.back";
+    std::vector<std::filesystem::path> backupFiles;
     for (const auto& entry : std::filesystem::directory_iterator(exePath)) {
         if (entry.is_regular_file()) {
             std::string filename = entry.path().filename().string();
-            if (filename.size() == 22 && filename.substr(14) == "_debuglog_tasktray.log.bak") {
-                std::tm tm = {};
-                std::istringstream iss(filename.substr(0, 14));
-                iss >> std::get_time(&tm, "%Y%m%d%H%M%S");
-                if (!iss.fail()) {
-                    auto file_time = std::chrono::system_clock::from_time_t(std::mktime(&tm));
-                    auto age = std::chrono::duration_cast<std::chrono::hours>(now - file_time).count();
-                    if (age > 24 * 90) { // 3ヶ月以上経過
-                        std::filesystem::remove(entry.path());
-                    }
-                }
+            if (filename.length() > backupSuffix.length() &&
+                filename.substr(filename.length() - backupSuffix.length()) == backupSuffix) {
+                backupFiles.push_back(entry.path());
             }
         }
+    }
+
+    // ファイル名でソート（タイムスタンプ順になる）
+    std::sort(backupFiles.begin(), backupFiles.end());
+
+    // 5つより多くあれば古いものを削除
+    while (backupFiles.size() > 5) {
+        std::filesystem::remove(backupFiles.front());
+        backupFiles.erase(backupFiles.begin());
     }
 
     // ここから既存のコード
