@@ -26,11 +26,8 @@ void DebugLog(const std::string& message) {
     char exePath[MAX_PATH];
     GetModuleFileNameA(NULL, exePath, MAX_PATH);
     std::filesystem::path buildDir = std::filesystem::path(exePath).remove_filename();
-    std::filesystem::path logFilePath = buildDir / "Debug" / "debuglog_tasktray.log";
+    std::filesystem::path logFilePath = buildDir / "debuglog_tasktray.log";
     
-    // Debugディレクトリが存在しない場合は作成
-    std::filesystem::create_directories(buildDir / "Debug");
-
     // ログファイルにメッセージを出力（排他処理）
     std::lock_guard<std::mutex> lock(logMutex);
     std::ofstream logFile(logFilePath, std::ios::app);

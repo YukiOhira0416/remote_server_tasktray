@@ -45,7 +45,7 @@ bool TaskTrayApp::Initialize() {
     std::filesystem::path exePath = GetExecutablePath();
     std::filesystem::path logFilePath = exePath / "debuglog_tasktray.log";
 
-    // debuglog.log をバックアップして削除する
+    // 既存のログファイルをバックアップする
     if (std::filesystem::exists(logFilePath)) {
         // 現在の日時を取得
         std::time_t t = std::time(nullptr);
@@ -58,30 +58,32 @@ bool TaskTrayApp::Initialize() {
         std::string timestamp = oss.str();
 
         // バックアップファイル名を作成
-        std::string backupFileName = timestamp + "_debuglog_tasktray.log.bak";
+        std::string backupFileName = timestamp + "_debuglog_tasktray.log.back";
         std::filesystem::path backupFilePath = exePath / backupFileName;
 
         // ファイルをリネーム
         std::filesystem::rename(logFilePath, backupFilePath);
-    }
 
-    // 3ヶ月以上経過したバックアップファイルを削除する
-    auto now = std::chrono::system_clock::now();
-    for (const auto& entry : std::filesystem::directory_iterator(exePath)) {
-        if (entry.is_regular_file()) {
-            std::string filename = entry.path().filename().string();
-            if (filename.size() == 22 && filename.substr(14) == "_debuglog_tasktray.log.bak") {
-                std::tm tm = {};
-                std::istringstream iss(filename.substr(0, 14));
-                iss >> std::get_time(&tm, "%Y%m%d%H%M%S");
-                if (!iss.fail()) {
-                    auto file_time = std::chrono::system_clock::from_time_t(std::mktime(&tm));
-                    auto age = std::chrono::duration_cast<std::chrono::hours>(now - file_time).count();
-                    if (age > 24 * 90) { // 3ヶ月以上経過
-                        std::filesystem::remove(entry.path());
-                    }
+        // バックアップファイルの数を確認し、5つを超える場合は古いものから削除
+        std::vector<std::filesystem::path> backupFiles;
+        for (const auto& entry : std::filesystem::directory_iterator(exePath)) {
+            if (entry.is_regular_file()) {
+                std::string filename = entry.path().filename().string();
+                const std::string suffix = "_debuglog_tasktray.log.back";
+            if (filename.length() >= suffix.length() &&
+                filename.compare(filename.length() - suffix.length(), suffix.length(), suffix) == 0) {
+                    backupFiles.push_back(entry.path());
                 }
             }
+        }
+
+        // 日付順でソート（新しい順）
+        std::sort(backupFiles.begin(), backupFiles.end(), std::greater<std::filesystem::path>());
+
+        // 5つより多い場合、古いファイルを削除
+        while (backupFiles.size() > 5) {
+            std::filesystem::remove(backupFiles.back());
+            backupFiles.pop_back();
         }
     }
 
