@@ -529,7 +529,7 @@ void TaskTrayApp::MonitorDisplayChanges() {
             sharedMemoryHelper.WriteSharedMemory("DISP_INFO_RE", "1");
             TaskTrayApp* appPtr = this;
             std::thread([appPtr]() {
-                Sleep(50);
+                Sleep(20);
                 SharedMemoryHelper helper(appPtr);
                 helper.WriteSharedMemory("DISP_INFO_RE", "0");
             }).detach();
