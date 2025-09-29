@@ -25,6 +25,14 @@
 #include <dbt.h>
 
 
+namespace {
+constexpr UINT ID_EXIT = 1;
+constexpr UINT ID_DISPLAY_BASE = 100;
+constexpr UINT ID_CAPTURE_MODE_NORMAL = 200;
+constexpr UINT ID_CAPTURE_MODE_GAME = 201;
+}
+
+
 // Register the TaskbarCreated message. This is sent when the taskbar is created (e.g., after an explorer.exe crash).
 // We need to handle this to re-add our icon.
 UINT WM_TASKBARCREATED = RegisterWindowMessage(_T("TaskbarCreated"));
@@ -108,10 +116,11 @@ bool TaskTrayApp::Initialize() {
     // 初回ディスプレイ情報取得
     RefreshDisplayList();
 
-    // Initialize unplug-notification flag (DISP_INFO_RE) to 0
+    // Initialize unplug-notification flag (REBOOT) to 0
     {
         SharedMemoryHelper sharedMemoryHelper(this);
-        sharedMemoryHelper.WriteSharedMemory("DISP_INFO_RE", "0");
+        sharedMemoryHelper.WriteSharedMemory("REBOOT", "0");
+        sharedMemoryHelper.WriteSharedMemory("Capture_Mode", "1");
     }
 
     // ディスプレイの接続・切断を監視するスレッドを起動
@@ -172,7 +181,7 @@ void TaskTrayApp::ShowContextMenu() {
         return;
     }
 
-    // Add "Display selection" submenu
+    // Add "Display Selection" submenu
     HMENU hSubMenu = CreatePopupMenu();
     if (hSubMenu == NULL) {
         DebugLog("ShowContextMenu: Error - Failed to create submenu.");
@@ -181,11 +190,22 @@ void TaskTrayApp::ShowContextMenu() {
     }
 
     UpdateDisplayMenu(hSubMenu); // Build the menu from shared memory
-    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hSubMenu, _T("Display selection"));
+    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hSubMenu, _T("Display Selection"));
+
+    HMENU hCaptureMenu = CreatePopupMenu();
+    if (hCaptureMenu == NULL) {
+        DebugLog("ShowContextMenu: Error - Failed to create capture submenu.");
+        DestroyMenu(hSubMenu);
+        DestroyMenu(hMenu);
+        return;
+    }
+
+    UpdateCaptureModeMenu(hCaptureMenu);
+    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hCaptureMenu, _T("CaptureMode"));
 
     // Add separator and Exit item
     AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenu(hMenu, MF_STRING, 1, _T("Exit")); // Command ID 1 for Exit
+    AppendMenu(hMenu, MF_STRING, ID_EXIT, _T("Exit")); // Command ID 1 for Exit
 
     SetForegroundWindow(hwnd);
     TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
@@ -232,7 +252,7 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
         }
 
         std::wstring displayName = L"Display " + std::to_wstring(idx + 1);
-        UINT commandId = 100 + idx; // Menu command IDs are 0-indexed.
+        UINT commandId = ID_DISPLAY_BASE + idx; // Menu command IDs are 0-indexed.
 
         if (!AppendMenu(hMenu, flags, commandId, displayName.c_str())) {
             DebugLog("UpdateDisplayMenu: Failed to add menu item for Display " + std::to_string(idx + 1));
@@ -269,6 +289,25 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
 
     // The menu check mark will be updated the next time it's opened,
     // as UpdateDisplayMenu reads the latest selection from DISP_INFO.
+}
+
+void TaskTrayApp::SetCaptureMode(int mode) {
+    SharedMemoryHelper sharedMemoryHelper(this);
+    std::string modeValue = std::to_string(mode);
+    DebugLog("SetCaptureMode: Setting capture mode to " + modeValue);
+    sharedMemoryHelper.WriteSharedMemory("Capture_Mode", modeValue);
+    PulseRebootFlag();
+}
+
+void TaskTrayApp::PulseRebootFlag() {
+    std::thread([this]() {
+        SharedMemoryHelper helper(this);
+        DebugLog("PulseRebootFlag: Setting REBOOT to 1.");
+        helper.WriteSharedMemory("REBOOT", "1");
+        Sleep(1000);
+        DebugLog("PulseRebootFlag: Resetting REBOOT to 0.");
+        helper.WriteSharedMemory("REBOOT", "0");
+    }).detach();
 }
 
 LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -347,8 +386,8 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
             UINT flags = HIWORD(wParam);
 
             if ((flags & MF_HILITE) && !(flags & MF_POPUP)) {
-                if (cmdId >= 100 && cmdId < 200) { // Display items are in this range
-                    int idx0 = (cmdId - 100);      // 0-based index for shared memory
+                if (cmdId >= ID_DISPLAY_BASE && cmdId < 200) { // Display items are in this range
+                    int idx0 = (cmdId - ID_DISPLAY_BASE);      // 0-based index for shared memory
                     int overlayNumber = idx0 + 1;  // 1-based number for display label
                     SharedMemoryHelper smh(app);
                     std::string key = "DISP_INFO_" + std::to_string(idx0);
@@ -373,7 +412,7 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
             break;
 
         case WM_COMMAND:
-            if (LOWORD(wParam) == 1) { // Exit command
+            if (LOWORD(wParam) == ID_EXIT) { // Exit command
                 DebugLog("WindowProc: Exit command received.");
                 if (app->Cleanup()) {
                     DebugLog("WindowProc: Cleanup succeeded.");
@@ -383,9 +422,17 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
                     DebugLog("WindowProc: Cleanup failed.");
                 }
             }
-            else if (LOWORD(wParam) >= 100) { // Display selection
+            else if (LOWORD(wParam) >= ID_DISPLAY_BASE && LOWORD(wParam) < 200) { // Display selection
                 DebugLog("WindowProc: Display selection command received.");
-                app->SelectDisplay(LOWORD(wParam) - 100);
+                app->SelectDisplay(LOWORD(wParam) - ID_DISPLAY_BASE);
+            }
+            else if (LOWORD(wParam) == ID_CAPTURE_MODE_NORMAL) {
+                DebugLog("WindowProc: Normal Mode selected.");
+                app->SetCaptureMode(1);
+            }
+            else if (LOWORD(wParam) == ID_CAPTURE_MODE_GAME) {
+                DebugLog("WindowProc: Game Mode selected.");
+                app->SetCaptureMode(2);
             }
             break;
 
@@ -523,15 +570,15 @@ void TaskTrayApp::MonitorDisplayChanges() {
             sharedMemoryHelper.WriteSharedMemory("DISP_INFO", newSelectedSerial);
         }
 
-        // Pulse DISP_INFO_RE=1 for 2 seconds on unplug or plug-in, then reset to 0
+        // Pulse REBOOT=1 for 1 second on unplug or plug-in, then reset to 0
         if (removalDetected || additionDetected) {
-            DebugLog("MonitorDisplayChanges: Plug/unplug detected. Pulsing DISP_INFO_RE to 1 for 2 seconds.");
-            sharedMemoryHelper.WriteSharedMemory("DISP_INFO_RE", "1");
+            DebugLog("MonitorDisplayChanges: Plug/unplug detected. Pulsing REBOOT to 1 for 1 second.");
+            sharedMemoryHelper.WriteSharedMemory("REBOOT", "1");
             TaskTrayApp* appPtr = this;
             std::thread([appPtr]() {
                 Sleep(1000);
                 SharedMemoryHelper helper(appPtr);
-                helper.WriteSharedMemory("DISP_INFO_RE", "0");
+                helper.WriteSharedMemory("REBOOT", "0");
             }).detach();
         }
 
@@ -668,5 +715,37 @@ void TaskTrayApp::UpdateTrayTooltip(const std::wstring& text) {
     if (!Shell_NotifyIcon(NIM_MODIFY, &nid)) {
         DebugLog("UpdateTrayTooltip: Shell_NotifyIcon failed.");
     }
+}
+
+void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
+    while (GetMenuItemCount(hMenu) > 0) {
+        RemoveMenu(hMenu, 0, MF_BYPOSITION);
+    }
+
+    SharedMemoryHelper sharedMemoryHelper(this);
+    std::string captureModeStr = sharedMemoryHelper.ReadSharedMemory("Capture_Mode");
+    int captureMode = 1;
+
+    if (!captureModeStr.empty()) {
+        try {
+            captureMode = std::stoi(captureModeStr);
+        }
+        catch (...) {
+            captureMode = 1;
+        }
+    }
+
+    UINT normalFlags = MF_STRING;
+    UINT gameFlags = MF_STRING;
+
+    if (captureMode == 2) {
+        gameFlags |= MF_CHECKED;
+    }
+    else {
+        normalFlags |= MF_CHECKED;
+    }
+
+    AppendMenu(hMenu, normalFlags, ID_CAPTURE_MODE_NORMAL, _T("Normal Mode"));
+    AppendMenu(hMenu, gameFlags, ID_CAPTURE_MODE_GAME, _T("Game Mode"));
 }
 

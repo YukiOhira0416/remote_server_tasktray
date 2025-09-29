@@ -17,7 +17,9 @@ public:
     void CreateTrayIcon();
     void ShowContextMenu();
     void UpdateDisplayMenu(HMENU hMenu);
+    void UpdateCaptureModeMenu(HMENU hMenu);
     void SelectDisplay(int displayIndex);
+    void SetCaptureMode(int mode);
     void MonitorDisplayChanges();
     void RefreshDisplayList();
     bool Cleanup();
@@ -25,6 +27,7 @@ public:
 
 private:
     void UpdateTrayTooltip(const std::wstring& text);
+    void PulseRebootFlag();
 
     HINSTANCE hInstance;
     HWND hwnd;
