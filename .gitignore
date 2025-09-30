@@ -38,12 +38,6 @@ Release/
 Thumbs.db
 ehthumbs.db
 
-# Visual Studio Code
-.vscode/
-
-# JetBrains IDEs
-.idea/
-
 # 一時ファイル
 *.tmp
 *.temp
