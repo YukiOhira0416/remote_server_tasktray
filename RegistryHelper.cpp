@@ -206,3 +206,53 @@ bool RegistryHelper::ClearDISPInfoFromRegistry() {
     }
     return all_deleted;
 }
+
+bool RegistryHelper::WriteCompatibilityTestInfoToRegistry(const std::string& CompatibilityTestStatus, const std::string& ErrorType) {
+    std::lock_guard<std::mutex> lock(registryMutex);
+
+    HKEY hKey;
+    if (RegCreateKeyEx(HKEY_CURRENT_USER, REG_PATH_COMPATIBILITY_INFO, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        std::wstring wCompatibilityTestStatus = utf8_to_utf16(CompatibilityTestStatus);
+        std::wstring wErrorType = utf8_to_utf16(ErrorType);
+        if (RegSetValueEx(hKey, L"CompatibilityTestStatus", 0, REG_SZ, (BYTE*)wCompatibilityTestStatus.c_str(), static_cast<DWORD>((wCompatibilityTestStatus.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
+            DebugLog("WriteRegistry: Failed to write CompatibilityTestStatus to registry.");
+            RegCloseKey(hKey);
+            return false;
+        }
+        if (RegSetValueEx(hKey, L"ErrorType", 0, REG_SZ, (BYTE*)wErrorType.c_str(), static_cast<DWORD>((wErrorType.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
+            DebugLog("WriteRegistry: Failed to write ErrorType to registry.");
+            RegCloseKey(hKey);
+            return false;
+        }
+        RegCloseKey(hKey);
+        DebugLog("WriteRegistry: Successfully wrote CompatibilityTestStatus and ErrorType to registry.");
+        return true;
+    }
+    else {
+        DebugLog("WriteRegistry: Failed to create or open registry key.");
+    }
+    return false;
+}
+
+
+std::pair<std::string, std::string> RegistryHelper::ReadCompatibilityTestInfoFromRegistry() {
+    std::lock_guard<std::mutex> lock(registryMutex);
+
+    HKEY hKey;
+    wchar_t compatibility_test_status[256] = {0};
+    wchar_t error_type[256] = {0};
+    DWORD compatibility_test_status_Size = sizeof(compatibility_test_status);
+    DWORD error_type_Size = sizeof(error_type);
+
+    std::pair<std::string, std::string> compatibilityInfo = {"", ""};
+
+    // MACHINE_INFOからGPU情報を読み取り
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, REG_PATH_COMPATIBILITY_INFO, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        if (RegQueryValueEx(hKey, L"CompatibilityTestStatus", NULL, NULL, (LPBYTE)compatibility_test_status, &compatibility_test_status_Size) == ERROR_SUCCESS &&
+            RegQueryValueEx(hKey, L"ErrorType", NULL, NULL, (LPBYTE)error_type, &error_type_Size) == ERROR_SUCCESS) {
+            compatibilityInfo = {utf16_to_utf8(compatibility_test_status), utf16_to_utf8(error_type)};
+        }
+        RegCloseKey(hKey);
+    }
+    return compatibilityInfo;
+}
