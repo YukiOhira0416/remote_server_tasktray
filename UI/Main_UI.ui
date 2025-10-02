@@ -1,0 +1,578 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>720</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="styleSheet">
+    <string notr="true">QWidget {
+	background-color: #5d8cae;
+
+}</string>
+   </property>
+   <widget class="QTabWidget" name="tabWidget">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>140</y>
+      <width>1241</width>
+      <height>541</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QTabWidget QWidget {
+	background: #dddddd;
+}
+
+
+QTabBar::tab {
+	min-width: 300px;
+	min-height: 35px;
+	padding: 5px;
+	background: lightgray;
+	color: black;
+	border: 1px soloid gray;
+	border-bottom: none;
+
+}
+
+QTabBar::tab:selected {
+	background: #00a3af;
+	color: white;
+}
+
+QTabBar::tab:hover {
+	background: lightblue;
+
+}</string>
+    </property>
+    <property name="currentIndex">
+     <number>1</number>
+    </property>
+    <widget class="QWidget" name="tab_0">
+     <property name="styleSheet">
+      <string notr="true">QPushButton {
+	font-family: &quot;Segoe UI&quot;;
+	font-size: 12px;
+}
+
+#label_00 {
+	font-family: &quot;Arial&quot;;
+	font-size: 25px;
+	font-weight: bold;
+}
+
+#label_01 {
+	font-family: &quot;Arial&quot;;
+	font-size: 25px;
+	font-weight: bold;
+}
+
+#label_02 {
+	font-family: &quot;Segoe UI&quot;;
+	font-size: 12px;
+}
+
+#label_03 {
+	font-family: &quot;Segoe UI&quot;;
+	font-size: 12px;
+}
+
+#label_04 {
+	font-family: &quot;Segoe UI&quot;;
+	font-size: 12px;
+}
+
+
+#label_05 {
+	font-family: &quot;Segoe UI&quot;;
+	font-size: 12px;
+}
+
+#label_06 {
+	font-family: &quot;Segoe UI&quot;;
+	font-size: 12px;
+	color: red;
+}
+
+#label_07 {
+	font-family: &quot;Segoe UI&quot;;
+	font-size: 12px;
+	color: red;
+}
+
+#label_08 {
+	font-family: &quot;Arial&quot;;
+	font-size: 25px;
+	font-weight: bold;
+}
+
+#label_09 {
+	font-family: &quot;Arial&quot;;
+	font-size: 25px;
+	font-weight: bold;
+}
+</string>
+     </property>
+     <attribute name="title">
+      <string>System</string>
+     </attribute>
+     <widget class="QLabel" name="label_00">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>20</y>
+        <width>171</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="text">
+       <string>Server Name</string>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="textEdit_0">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>60</y>
+        <width>321</width>
+        <height>41</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_0">
+      <property name="geometry">
+       <rect>
+        <x>380</x>
+        <y>60</y>
+        <width>111</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Save</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_01">
+      <property name="geometry">
+       <rect>
+        <x>560</x>
+        <y>20</y>
+        <width>121</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="text">
+       <string>Activation</string>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="textEdit_1">
+      <property name="geometry">
+       <rect>
+        <x>650</x>
+        <y>60</y>
+        <width>541</width>
+        <height>41</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_02">
+      <property name="geometry">
+       <rect>
+        <x>560</x>
+        <y>61</y>
+        <width>80</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>User ID</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_03">
+      <property name="geometry">
+       <rect>
+        <x>560</x>
+        <y>112</y>
+        <width>80</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Password</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_04">
+      <property name="geometry">
+       <rect>
+        <x>560</x>
+        <y>159</y>
+        <width>80</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Registor Code</string>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="textEdit_2">
+      <property name="geometry">
+       <rect>
+        <x>649</x>
+        <y>111</y>
+        <width>541</width>
+        <height>41</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="textEdit_3">
+      <property name="geometry">
+       <rect>
+        <x>650</x>
+        <y>160</y>
+        <width>541</width>
+        <height>41</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_1">
+      <property name="geometry">
+       <rect>
+        <x>1070</x>
+        <y>212</y>
+        <width>121</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Activate</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_05">
+      <property name="geometry">
+       <rect>
+        <x>706</x>
+        <y>24</y>
+        <width>41</width>
+        <height>31</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Status</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_06">
+      <property name="geometry">
+       <rect>
+        <x>769</x>
+        <y>29</y>
+        <width>71</width>
+        <height>21</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Unactivated</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_08">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>270</y>
+        <width>191</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="text">
+       <string>Announcement</string>
+      </property>
+     </widget>
+     <widget class="QTextBrowser" name="textBrowser_0">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>311</y>
+        <width>471</width>
+        <height>151</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_09">
+      <property name="geometry">
+       <rect>
+        <x>560</x>
+        <y>260</y>
+        <width>231</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="text">
+       <string>System Infomation</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_07">
+      <property name="geometry">
+       <rect>
+        <x>860</x>
+        <y>30</y>
+        <width>141</width>
+        <height>21</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Expaired On 31/08/20XX</string>
+      </property>
+     </widget>
+     <widget class="QTextBrowser" name="textBrowser_1">
+      <property name="geometry">
+       <rect>
+        <x>560</x>
+        <y>310</y>
+        <width>631</width>
+        <height>151</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tab_1">
+     <property name="styleSheet">
+      <string notr="true">#label_10 {
+	font-family: &quot;Arial&quot;;
+	font-size: 25px;
+	font-weight: bold;
+}</string>
+     </property>
+     <attribute name="title">
+      <string>Settings</string>
+     </attribute>
+     <widget class="QGroupBox" name="groupBox_0">
+      <property name="geometry">
+       <rect>
+        <x>66</x>
+        <y>74</y>
+        <width>941</width>
+        <height>95</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>Auto</string>
+      </property>
+      <widget class="QLabel" name="label_11">
+       <property name="geometry">
+        <rect>
+         <x>151</x>
+         <y>20</y>
+         <width>761</width>
+         <height>61</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>This mode automatically adjusts image quality based on network speed and the client application's status. 
+It strives to maintain the highest possible quality, but in some cases text and other details may become difficult to read. 
+This mode is useful when the connection speed is unknown.</string>
+       </property>
+      </widget>
+      <widget class="QCheckBox" name="checkBox_0">
+       <property name="geometry">
+        <rect>
+         <x>89</x>
+         <y>40</y>
+         <width>40</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QGroupBox" name="groupBox_1">
+      <property name="geometry">
+       <rect>
+        <x>66</x>
+        <y>176</y>
+        <width>941</width>
+        <height>95</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>Low-speed</string>
+      </property>
+      <widget class="QCheckBox" name="checkBox_1">
+       <property name="geometry">
+        <rect>
+         <x>89</x>
+         <y>41</y>
+         <width>40</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_12">
+       <property name="geometry">
+        <rect>
+         <x>151</x>
+         <y>17</y>
+         <width>761</width>
+         <height>61</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>This mode is for low-bandwidth connections. It sets the image quality delivered to the client to match a 100 Mbps connection. 
+To ensure appropriate quality, the client’s display area resolution is limited to a maximum of 1920 × 1080. 
+It’s ideal for remote gaming over slower connections, and it can also help when text is hard to read in Auto mode.</string>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QGroupBox" name="groupBox_2">
+      <property name="geometry">
+       <rect>
+        <x>66</x>
+        <y>282</y>
+        <width>941</width>
+        <height>95</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>Medium-speed</string>
+      </property>
+      <widget class="QCheckBox" name="checkBox_2">
+       <property name="geometry">
+        <rect>
+         <x>89</x>
+         <y>42</y>
+         <width>40</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_13">
+       <property name="geometry">
+        <rect>
+         <x>151</x>
+         <y>22</y>
+         <width>761</width>
+         <height>61</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>This mode is for medium-bandwidth connections and is effective for networks of roughly 150–250 Mbps. 
+It sets the image quality delivered to the client to match your connection speed. 
+To ensure appropriate quality, the client’s display area resolution is limited to a maximum of 2560 × 1440. 
+It’s ideal for remote gaming at higher quality than the Low-Bandwidth mode, and it can also help when text is hard to read in Auto mode.</string>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QGroupBox" name="groupBox_3">
+      <property name="geometry">
+       <rect>
+        <x>66</x>
+        <y>385</y>
+        <width>941</width>
+        <height>95</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>Higt-speed</string>
+      </property>
+      <widget class="QCheckBox" name="checkBox_3">
+       <property name="geometry">
+        <rect>
+         <x>89</x>
+         <y>41</y>
+         <width>40</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_14">
+       <property name="geometry">
+        <rect>
+         <x>151</x>
+         <y>21</y>
+         <width>761</width>
+         <height>61</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>This mode is optimized for high-speed connections and is suitable for environments with speeds of 300 Mbps or higher. 
+Select this mode if you want to remote-play games comfortably at maximum image quality. 
+The client application supports a maximum display resolution of 3860 × 2160.</string>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QPushButton" name="pushButton_2">
+      <property name="geometry">
+       <rect>
+        <x>1055</x>
+        <y>440</y>
+        <width>121</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Save</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_10">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>18</y>
+        <width>191</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Mode Selection</string>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tab_2">
+     <attribute name="title">
+      <string>Donation</string>
+     </attribute>
+    </widget>
+   </widget>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionOpen_Ctrl_N">
+   <property name="text">
+    <string>Open            Ctrl + N</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

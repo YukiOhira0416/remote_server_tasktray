@@ -6,6 +6,37 @@ project(remote_server_tasktray)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# uicの実行可能ファイルを見つける
+find_program(UIC_EXECUTABLE uic)
+if(NOT UIC_EXECUTABLE)
+    message(FATAL_ERROR "uic not found. Please ensure Qt tools are installed and in PATH.")
+endif()
+
+# UIファイルを処理
+set(UI_FILES
+    UI/Main_UI.ui
+)
+
+# UIファイルからヘッダーファイルを生成
+set(GENERATED_UI_HEADERS)
+foreach(ui_file ${UI_FILES})
+    get_filename_component(ui_basename ${ui_file} NAME_WE)
+    set(ui_header "${CMAKE_CURRENT_BINARY_DIR}/ui_${ui_basename}.h")
+    
+    add_custom_command(
+        OUTPUT ${ui_header}
+        COMMAND ${UIC_EXECUTABLE} -o ${ui_header} ${CMAKE_CURRENT_SOURCE_DIR}/${ui_file}
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${ui_file}
+        COMMENT "Generating ${ui_header} from ${ui_file}"
+        VERBATIM
+    )
+    
+    list(APPEND GENERATED_UI_HEADERS ${ui_header})
+endforeach()
+
+# デバッグ情報: 生成されるヘッダーファイルを表示
+message(STATUS "Generated UI headers: ${GENERATED_UI_HEADERS}")
+
 # Windows Unicode文字セットを使用
 add_definitions(-DUNICODE -D_UNICODE)
 
@@ -56,7 +87,13 @@ set(RESOURCES
 )
 
 # 実行可能ファイルを作成
-add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCES})
+add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCES} ${GENERATED_UI_HEADERS})
+
+# UIヘッダー生成用のカスタムターゲットを作成
+if(GENERATED_UI_HEADERS)
+    add_custom_target(generate_ui_headers ALL DEPENDS ${GENERATED_UI_HEADERS})
+    add_dependencies(${PROJECT_NAME} generate_ui_headers)
+endif()
 
 # Windows APIライブラリをリンク
 target_link_libraries(${PROJECT_NAME}
@@ -118,8 +155,11 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
     )
 endif()
 
-# インクルードディレクトリの設定（現在のディレクトリ）
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+# インクルードディレクトリの設定（現在のディレクトリと生成されたヘッダー用ディレクトリ）
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
 
 # Windows SDKのパスを探す（オプション）
 if(WIN32)
@@ -145,6 +185,8 @@ if(MSVC)
     source_group("Header Files" FILES ${HEADERS})
     source_group("Source Files" FILES ${SOURCES})
     source_group("Resource Files" FILES ${RESOURCES})
+    source_group("UI Files" FILES ${UI_FILES})
+    source_group("Generated Files" FILES ${GENERATED_UI_HEADERS})
 endif()
 
 # デバッグ情報出力
