@@ -66,13 +66,6 @@ static bool GetPrimaryAdapterVendorDevice(std::string& outVendorID, std::string&
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow) {
     // Set Per-Monitor DPI Awareness to handle different DPIs across monitors.
     // This is crucial for ensuring the tray menu and tooltips are positioned correctly.
-    std::pair<std::string, std::string> currentTestInfo = RegistryHelper::ReadCompatibilityTestInfoFromRegistry();
-    if (currentTestInfo.first == "" || currentTestInfo.second == "") {
-        RegistryHelper::WriteCompatibilityTestInfoToRegistry("1", "0");
-        DebugLog("WinMain: Set CompatibilityTestInfo in registry to (1, 0).");
-    }
-    
-
     HMODULE user32 = LoadLibrary(L"user32.dll");
     if (user32) {
         typedef BOOL(WINAPI* SetProcessDpiAwarenessContext_t)(DPI_AWARENESS_CONTEXT);
