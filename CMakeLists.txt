@@ -19,10 +19,13 @@ set(UI_FILES
 
 # UIファイルからヘッダーファイルを生成
 set(GENERATED_UI_HEADERS)
+set(COPIED_UI_HEADERS)
 foreach(ui_file ${UI_FILES})
     get_filename_component(ui_basename ${ui_file} NAME_WE)
     set(ui_header "${CMAKE_CURRENT_BINARY_DIR}/ui_${ui_basename}.h")
+    set(copied_ui_header "${CMAKE_CURRENT_SOURCE_DIR}/ui_${ui_basename}.h")
     
+    # UIファイルからヘッダーファイルを生成
     add_custom_command(
         OUTPUT ${ui_header}
         COMMAND ${UIC_EXECUTABLE} -o ${ui_header} ${CMAKE_CURRENT_SOURCE_DIR}/${ui_file}
@@ -31,11 +34,22 @@ foreach(ui_file ${UI_FILES})
         VERBATIM
     )
     
+    # 生成されたヘッダーファイルをプロジェクトルートにコピー
+    add_custom_command(
+        OUTPUT ${copied_ui_header}
+        COMMAND ${CMAKE_COMMAND} -E copy ${ui_header} ${copied_ui_header}
+        DEPENDS ${ui_header}
+        COMMENT "Copying ${ui_header} to project root"
+        VERBATIM
+    )
+    
     list(APPEND GENERATED_UI_HEADERS ${ui_header})
+    list(APPEND COPIED_UI_HEADERS ${copied_ui_header})
 endforeach()
 
 # デバッグ情報: 生成されるヘッダーファイルを表示
 message(STATUS "Generated UI headers: ${GENERATED_UI_HEADERS}")
+message(STATUS "Copied UI headers: ${COPIED_UI_HEADERS}")
 
 # Windows Unicode文字セットを使用
 add_definitions(-DUNICODE -D_UNICODE)
@@ -93,6 +107,15 @@ add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCES} ${GENERA
 if(GENERATED_UI_HEADERS)
     add_custom_target(generate_ui_headers ALL DEPENDS ${GENERATED_UI_HEADERS})
     add_dependencies(${PROJECT_NAME} generate_ui_headers)
+endif()
+
+# UIヘッダーコピー用のカスタムターゲットを作成
+if(COPIED_UI_HEADERS)
+    add_custom_target(copy_ui_headers ALL DEPENDS ${COPIED_UI_HEADERS})
+    add_dependencies(${PROJECT_NAME} copy_ui_headers)
+    if(TARGET generate_ui_headers)
+        add_dependencies(copy_ui_headers generate_ui_headers)
+    endif()
 endif()
 
 # Windows APIライブラリをリンク
@@ -186,7 +209,8 @@ if(MSVC)
     source_group("Source Files" FILES ${SOURCES})
     source_group("Resource Files" FILES ${RESOURCES})
     source_group("UI Files" FILES ${UI_FILES})
-    source_group("Generated Files" FILES ${GENERATED_UI_HEADERS})
+    source_group("Generated Files\\Build Directory" FILES ${GENERATED_UI_HEADERS})
+    source_group("Generated Files\\Project Root" FILES ${COPIED_UI_HEADERS})
 endif()
 
 # デバッグ情報出力
