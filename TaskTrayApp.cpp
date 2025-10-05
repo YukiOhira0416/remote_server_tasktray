@@ -23,6 +23,14 @@
 #include <filesystem>
 #include <chrono>
 #include <dbt.h>
+#include <atomic>
+#include <thread>
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QMainWindow>
+#include <QtCore/QMetaObject>
+#include <QtCore/QObject>
+#include <QtCore/Qt>
+#include "ui_Main_UI.h"
 
 
 namespace {
@@ -30,6 +38,10 @@ constexpr UINT ID_EXIT = 1;
 constexpr UINT ID_DISPLAY_BASE = 100;
 constexpr UINT ID_CAPTURE_MODE_NORMAL = 200;
 constexpr UINT ID_CAPTURE_MODE_GAME = 201;
+constexpr UINT ID_CONTROL_PANEL = 300;
+
+std::atomic<bool> g_controlPanelRunning{ false };
+std::atomic<QMainWindow*> g_controlPanelWindow{ nullptr };
 }
 
 
@@ -203,6 +215,8 @@ void TaskTrayApp::ShowContextMenu() {
     UpdateCaptureModeMenu(hCaptureMenu);
     AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hCaptureMenu, _T("CaptureMode"));
 
+    AppendMenu(hMenu, MF_STRING, ID_CONTROL_PANEL, _T("ControlPanel"));
+
     // Add separator and Exit item
     AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenu(hMenu, MF_STRING, ID_EXIT, _T("Exit")); // Command ID 1 for Exit
@@ -297,6 +311,58 @@ void TaskTrayApp::SetCaptureMode(int mode) {
     DebugLog("SetCaptureMode: Setting capture mode to " + modeValue);
     sharedMemoryHelper.WriteSharedMemory("Capture_Mode", modeValue);
     PulseRebootFlag();
+}
+
+void TaskTrayApp::ShowControlPanel() {
+    if (g_controlPanelRunning.load()) {
+        if (auto window = g_controlPanelWindow.load()) {
+            QMetaObject::invokeMethod(window, [window]() {
+                window->setWindowState(window->windowState() & ~Qt::WindowMinimized);
+                window->show();
+                window->raise();
+                window->activateWindow();
+            }, Qt::QueuedConnection);
+        }
+        DebugLog("ShowControlPanel: Control panel already running. Bringing window to front.");
+        return;
+    }
+
+    DebugLog("ShowControlPanel: Launching control panel UI.");
+    g_controlPanelRunning.store(true);
+
+    std::thread([]() {
+        int argc = 0;
+        char* argv[] = { nullptr };
+        QApplication app(argc, argv);
+
+        QMainWindow mainWindow;
+        Ui_MainWindow ui;
+        ui.setupUi(&mainWindow);
+
+        DebugLog("ShowControlPanel: Control panel window initialized.");
+
+        g_controlPanelWindow.store(&mainWindow);
+
+        QObject::connect(&app, &QApplication::aboutToQuit, []() {
+            g_controlPanelWindow.store(nullptr);
+            g_controlPanelRunning.store(false);
+            DebugLog("ShowControlPanel: QApplication about to quit.");
+        });
+
+        QObject::connect(&mainWindow, &QObject::destroyed, []() {
+            g_controlPanelWindow.store(nullptr);
+            g_controlPanelRunning.store(false);
+            DebugLog("ShowControlPanel: Control panel window destroyed.");
+        });
+
+        mainWindow.show();
+        DebugLog("ShowControlPanel: Entering Qt event loop for control panel.");
+        app.exec();
+
+        g_controlPanelWindow.store(nullptr);
+        g_controlPanelRunning.store(false);
+        DebugLog("ShowControlPanel: Qt event loop exited.");
+    }).detach();
 }
 
 void TaskTrayApp::PulseRebootFlag() {
@@ -433,6 +499,10 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
             else if (LOWORD(wParam) == ID_CAPTURE_MODE_GAME) {
                 DebugLog("WindowProc: Game Mode selected.");
                 app->SetCaptureMode(2);
+            }
+            else if (LOWORD(wParam) == ID_CONTROL_PANEL) {
+                DebugLog("WindowProc: Control Panel selected.");
+                app->ShowControlPanel();
             }
             break;
 
