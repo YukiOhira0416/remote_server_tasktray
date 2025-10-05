@@ -2,56 +2,115 @@ cmake_minimum_required(VERSION 3.16)
 
 project(remote_server_tasktray)
 
+# Qt6のパスを設定
+if(NOT DEFINED Qt6_DIR)
+    # 一般的なQt6インストールパスを検索
+    set(QT6_SEARCH_PATHS
+        "C:/Qt/6.10.0/msvc2022_64"
+        "C:/Qt/6.9.3/msvc2022_64"
+    )
+    
+    # 環境変数からQtパスを取得を試行
+    if(DEFINED ENV{QT_DIR})
+        list(INSERT QT6_SEARCH_PATHS 0 "$ENV{QT_DIR}")
+    endif()
+    
+    if(DEFINED ENV{Qt6_DIR})
+        list(INSERT QT6_SEARCH_PATHS 0 "$ENV{Qt6_DIR}")
+    endif()
+    
+    if(DEFINED ENV{CMAKE_PREFIX_PATH})
+        string(REPLACE ";" ";" ENV_CMAKE_PREFIX_PATH "$ENV{CMAKE_PREFIX_PATH}")
+        list(INSERT QT6_SEARCH_PATHS 0 ${ENV_CMAKE_PREFIX_PATH})
+    endif()
+    
+    # Qt6のインストールパスを検索
+    foreach(qt_path ${QT6_SEARCH_PATHS})
+        message(STATUS "Checking Qt6 path: ${qt_path}")
+        if(EXISTS "${qt_path}/lib/cmake/Qt6")
+            set(Qt6_DIR "${qt_path}/lib/cmake/Qt6")
+            message(STATUS "Found Qt6 at: ${Qt6_DIR}")
+            break()
+        elseif(EXISTS "${qt_path}/cmake/Qt6")
+            set(Qt6_DIR "${qt_path}/cmake/Qt6")
+            message(STATUS "Found Qt6 at: ${Qt6_DIR}")
+            break()
+        elseif(EXISTS "${qt_path}")
+            list(APPEND CMAKE_PREFIX_PATH "${qt_path}")
+            message(STATUS "Added to CMAKE_PREFIX_PATH: ${qt_path}")
+        endif()
+    endforeach()
+    
+    # まだ見つからない場合、CMakeにヒントを提供
+    if(NOT DEFINED Qt6_DIR)
+        message(STATUS "Qt6 not found in standard locations. You may need to:")
+        message(STATUS "1. Install Qt6 from https://www.qt.io/download")
+        message(STATUS "2. Set Qt6_DIR environment variable to point to Qt6 cmake directory")
+        message(STATUS "3. Set CMAKE_PREFIX_PATH to include Qt6 installation directory")
+        message(STATUS "Example: cmake -DQt6_DIR=C:/Qt/6.10.0/msvc2022_64/lib/cmake/Qt6 ..")
+    endif()
+endif()
+
 find_package(Qt6 COMPONENTS Widgets REQUIRED)
+
+# Qt6のビルドツールを自動設定
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC OFF)  # 手動でUIファイルを処理するため無効化
+set(CMAKE_AUTORCC ON)
+
+# UICの検索パスを明示的に設定
+set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/UI)
+
+# Qt6のインクルードディレクトリを設定
+if(Qt6_FOUND)
+    get_target_property(QT_INCLUDE_DIR Qt6::Core INTERFACE_INCLUDE_DIRECTORIES)
+    message(STATUS "Qt6 include directories: ${QT_INCLUDE_DIR}")
+endif()
+
+# TaskTrayApp.cpp用のUI無効化
+set_property(SOURCE TaskTrayApp.cpp PROPERTY SKIP_AUTOUIC ON)
 
 # C++17 標準を使用
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# uicの実行可能ファイルを見つける
-find_program(UIC_EXECUTABLE uic)
-if(NOT UIC_EXECUTABLE)
-    message(FATAL_ERROR "uic not found. Please ensure Qt tools are installed and in PATH.")
-endif()
 
 # UIファイルを処理
 set(UI_FILES
     UI/Main_UI.ui
 )
 
-# UIファイルからヘッダーファイルを生成
-set(GENERATED_UI_HEADERS)
-set(COPIED_UI_HEADERS)
-foreach(ui_file ${UI_FILES})
-    get_filename_component(ui_basename ${ui_file} NAME_WE)
-    set(ui_header "${CMAKE_CURRENT_BINARY_DIR}/ui_${ui_basename}.h")
-    set(copied_ui_header "${CMAKE_CURRENT_SOURCE_DIR}/ui_${ui_basename}.h")
-    
-    # UIファイルからヘッダーファイルを生成
-    add_custom_command(
-        OUTPUT ${ui_header}
-        COMMAND ${UIC_EXECUTABLE} -o ${ui_header} ${CMAKE_CURRENT_SOURCE_DIR}/${ui_file}
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${ui_file}
-        COMMENT "Generating ${ui_header} from ${ui_file}"
-        VERBATIM
-    )
-    
-    # 生成されたヘッダーファイルをプロジェクトルートにコピー
-    add_custom_command(
-        OUTPUT ${copied_ui_header}
-        COMMAND ${CMAKE_COMMAND} -E copy ${ui_header} ${copied_ui_header}
-        DEPENDS ${ui_header}
-        COMMENT "Copying ${ui_header} to project root"
-        VERBATIM
-    )
-    
-    list(APPEND GENERATED_UI_HEADERS ${ui_header})
-    list(APPEND COPIED_UI_HEADERS ${copied_ui_header})
-endforeach()
+# UIファイルのパスを絶対パスに設定
+set(CMAKE_AUTOUIC_SEARCH_PATHS 
+    ${CMAKE_CURRENT_SOURCE_DIR}/UI
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
-# デバッグ情報: 生成されるヘッダーファイルを表示
-message(STATUS "Generated UI headers: ${GENERATED_UI_HEADERS}")
-message(STATUS "Copied UI headers: ${COPIED_UI_HEADERS}")
+# UIファイルの場所を明示的に設定
+set_property(SOURCE UI/Main_UI.ui PROPERTY SKIP_AUTOUIC ON)
+
+# 手動でUIファイルを処理
+find_program(QT_UIC_EXECUTABLE NAMES uic HINTS ${Qt6_DIR}/../../../bin)
+if(QT_UIC_EXECUTABLE)
+    message(STATUS "Found UIC: ${QT_UIC_EXECUTABLE}")
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ui_Main_UI.h
+        COMMAND ${QT_UIC_EXECUTABLE} -o ${CMAKE_CURRENT_BINARY_DIR}/ui_Main_UI.h ${CMAKE_CURRENT_SOURCE_DIR}/UI/Main_UI.ui
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/UI/Main_UI.ui
+        COMMENT "Generating ui_Main_UI.h from UI/Main_UI.ui"
+        VERBATIM
+    )
+    
+    # 生成されたUIヘッダーファイルをプロジェクトルートにコピー
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/ui_Main_UI.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/ui_Main_UI.h ${CMAKE_CURRENT_SOURCE_DIR}/ui_Main_UI.h
+        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ui_Main_UI.h
+        COMMENT "Copying ui_Main_UI.h to project root"
+        VERBATIM
+    )
+    
+    list(APPEND SOURCES ${CMAKE_CURRENT_BINARY_DIR}/ui_Main_UI.h)
+endif()
 
 # Windows Unicode文字セットを使用
 add_definitions(-DUNICODE -D_UNICODE)
@@ -78,6 +137,9 @@ set(SOURCES
     OverlayManager.cpp
 )
 
+# TaskTrayApp.cppファイルに対してAutoUICを無効化
+set_property(SOURCE TaskTrayApp.cpp PROPERTY SKIP_AUTOUIC ON)
+
 # ヘッダーファイル
 set(HEADERS
     remote_server_tasktray.h
@@ -103,22 +165,16 @@ set(RESOURCES
 )
 
 # 実行可能ファイルを作成
-add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCES} ${GENERATED_UI_HEADERS})
+add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCES})
 
-# UIヘッダー生成用のカスタムターゲットを作成
-if(GENERATED_UI_HEADERS)
-    add_custom_target(generate_ui_headers ALL DEPENDS ${GENERATED_UI_HEADERS})
-    add_dependencies(${PROJECT_NAME} generate_ui_headers)
-endif()
+# UIヘッダーファイルへの依存関係を追加
+add_dependencies(${PROJECT_NAME} ui_header_generation)
 
-# UIヘッダーコピー用のカスタムターゲットを作成
-if(COPIED_UI_HEADERS)
-    add_custom_target(copy_ui_headers ALL DEPENDS ${COPIED_UI_HEADERS})
-    add_dependencies(${PROJECT_NAME} copy_ui_headers)
-    if(TARGET generate_ui_headers)
-        add_dependencies(copy_ui_headers generate_ui_headers)
-    endif()
-endif()
+# UIヘッダー生成用のカスタムターゲット
+add_custom_target(ui_header_generation
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ui_Main_UI.h ${CMAKE_CURRENT_SOURCE_DIR}/ui_Main_UI.h
+    COMMENT "Generating and copying UI headers"
+)
 
 # Windows APIライブラリをリンク
 target_link_libraries(${PROJECT_NAME}
@@ -185,7 +241,14 @@ endif()
 target_include_directories(${PROJECT_NAME} PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/UI
 )
+
+# Qt6の自動生成ディレクトリを追加
+if(TARGET Qt6::uic)
+    get_target_property(QT_UIC_EXECUTABLE Qt6::uic IMPORTED_LOCATION)
+    message(STATUS "Qt UIC executable: ${QT_UIC_EXECUTABLE}")
+endif()
 
 # Windows SDKのパスを探す（オプション）
 if(WIN32)
@@ -212,8 +275,6 @@ if(MSVC)
     source_group("Source Files" FILES ${SOURCES})
     source_group("Resource Files" FILES ${RESOURCES})
     source_group("UI Files" FILES ${UI_FILES})
-    source_group("Generated Files\\Build Directory" FILES ${GENERATED_UI_HEADERS})
-    source_group("Generated Files\\Project Root" FILES ${COPIED_UI_HEADERS})
 endif()
 
 # デバッグ情報出力
