@@ -20,6 +20,7 @@ public:
     void UpdateCaptureModeMenu(HMENU hMenu);
     void SelectDisplay(int displayIndex);
     void SetCaptureMode(int mode);
+    void ShowControlPanel();
     void MonitorDisplayChanges();
     void RefreshDisplayList();
     bool Cleanup();

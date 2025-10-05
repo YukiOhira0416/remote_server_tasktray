@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 project(remote_server_tasktray)
 
+find_package(Qt6 COMPONENTS Widgets REQUIRED)
+
 # C++17 標準を使用
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -135,6 +137,7 @@ target_link_libraries(${PROJECT_NAME}
     dxgi
     d3d11
     Shcore
+    Qt6::Widgets
 )
 
 # コンパイラ固有の設定
