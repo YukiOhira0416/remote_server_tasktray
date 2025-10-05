@@ -26,9 +26,9 @@ public:
     // Deletes all values under the display info registry path.
     static bool ClearDISPInfoFromRegistry();
 
-    static bool WriteCompatibilityTestInfoToRegistry(const std::string& CompatibilityTestStatus, const std::string& deviceID);
+    static bool WriteCaptureTypeToRegistry(const std::string& captureType);
 
-    static std::pair<std::string, std::string> ReadCompatibilityTestInfoFromRegistry();    
+    static std::string ReadCaptureTypeFromRegistry();
 };
 
 #endif

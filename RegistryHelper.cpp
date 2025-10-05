@@ -207,25 +207,19 @@ bool RegistryHelper::ClearDISPInfoFromRegistry() {
     return all_deleted;
 }
 
-bool RegistryHelper::WriteCompatibilityTestInfoToRegistry(const std::string& CompatibilityTestStatus, const std::string& ErrorType) {
+bool RegistryHelper::WriteCaptureTypeToRegistry(const std::string& CaptureType) {
     std::lock_guard<std::mutex> lock(registryMutex);
 
     HKEY hKey;
-    if (RegCreateKeyEx(HKEY_CURRENT_USER, REG_PATH_COMPATIBILITY_INFO, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        std::wstring wCompatibilityTestStatus = utf8_to_utf16(CompatibilityTestStatus);
-        std::wstring wErrorType = utf8_to_utf16(ErrorType);
-        if (RegSetValueEx(hKey, L"CompatibilityTestStatus", 0, REG_SZ, (BYTE*)wCompatibilityTestStatus.c_str(), static_cast<DWORD>((wCompatibilityTestStatus.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
-            DebugLog("WriteRegistry: Failed to write CompatibilityTestStatus to registry.");
-            RegCloseKey(hKey);
-            return false;
-        }
-        if (RegSetValueEx(hKey, L"ErrorType", 0, REG_SZ, (BYTE*)wErrorType.c_str(), static_cast<DWORD>((wErrorType.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
-            DebugLog("WriteRegistry: Failed to write ErrorType to registry.");
+    if (RegCreateKeyEx(HKEY_CURRENT_USER, REG_PATH_CAPTURE_TYPE, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        std::wstring wCaptureType = utf8_to_utf16(CaptureType);
+        if (RegSetValueEx(hKey, L"CaptureType", 0, REG_SZ, (BYTE*)wCaptureType.c_str(), static_cast<DWORD>((wCaptureType.size() + 1) * sizeof(wchar_t))) != ERROR_SUCCESS) {
+            DebugLog("WriteRegistry: Failed to write CaptureType to registry.");
             RegCloseKey(hKey);
             return false;
         }
         RegCloseKey(hKey);
-        DebugLog("WriteRegistry: Successfully wrote CompatibilityTestStatus and ErrorType to registry.");
+        DebugLog("WriteRegistry: Successfully wrote CaptureType to registry.");
         return true;
     }
     else {
@@ -235,24 +229,21 @@ bool RegistryHelper::WriteCompatibilityTestInfoToRegistry(const std::string& Com
 }
 
 
-std::pair<std::string, std::string> RegistryHelper::ReadCompatibilityTestInfoFromRegistry() {
+std::string RegistryHelper::ReadCaptureTypeFromRegistry() {
     std::lock_guard<std::mutex> lock(registryMutex);
 
     HKEY hKey;
-    wchar_t compatibility_test_status[256] = {0};
-    wchar_t error_type[256] = {0};
-    DWORD compatibility_test_status_Size = sizeof(compatibility_test_status);
-    DWORD error_type_Size = sizeof(error_type);
+    wchar_t capture_type[256] = {0};
+    DWORD capture_type_Size = sizeof(capture_type);
 
-    std::pair<std::string, std::string> compatibilityInfo = {"", ""};
+    std::string captureInfo = "";
 
     // MACHINE_INFOからGPU情報を読み取り
-    if (RegOpenKeyEx(HKEY_CURRENT_USER, REG_PATH_COMPATIBILITY_INFO, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        if (RegQueryValueEx(hKey, L"CompatibilityTestStatus", NULL, NULL, (LPBYTE)compatibility_test_status, &compatibility_test_status_Size) == ERROR_SUCCESS &&
-            RegQueryValueEx(hKey, L"ErrorType", NULL, NULL, (LPBYTE)error_type, &error_type_Size) == ERROR_SUCCESS) {
-            compatibilityInfo = {utf16_to_utf8(compatibility_test_status), utf16_to_utf8(error_type)};
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, REG_PATH_CAPTURE_TYPE, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        if (RegQueryValueEx(hKey, L"CaptureType", NULL, NULL, (LPBYTE)capture_type, &capture_type_Size) == ERROR_SUCCESS) {
+            captureInfo = utf16_to_utf8(capture_type);
         }
         RegCloseKey(hKey);
     }
-    return compatibilityInfo;
+    return captureInfo;
 }
