@@ -29,10 +29,12 @@
 #include <cstdint>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QMainWindow>
+#include <QtWidgets/QWidget>
 #include <QtCore/QMetaObject>
 #include <QtCore/QObject>
 #include <QtCore/Qt>
 #include <QtCore/QCoreApplication>
+#include <QtCore/QEvent>
 #include "ui_Main_UI.h"
 
 
@@ -46,6 +48,25 @@ constexpr UINT ID_CONTROL_PANEL = 300;
 std::atomic<bool> g_controlPanelRunning{ false };
 std::atomic<QMainWindow*> g_controlPanelWindow{ nullptr };
 std::atomic<std::uint64_t> g_controlPanelToken{ 0 };
+
+class ControlPanelCloseFilter : public QObject {
+public:
+    using QObject::QObject;
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override {
+        if (event && event->type() == QEvent::Close) {
+            if (auto* window = qobject_cast<QWidget*>(watched)) {
+                DebugLog("ControlPanelCloseFilter: Close event intercepted. Hiding control panel instead of closing.");
+                event->ignore();
+                window->hide();
+                window->setWindowState(window->windowState() & ~Qt::WindowMinimized);
+            }
+            return true;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+};
 }
 
 
@@ -353,6 +374,7 @@ void TaskTrayApp::ShowControlPanel() {
         int argc = 0;
         char* argv[] = { nullptr };
         QApplication app(argc, argv);
+        QApplication::setQuitOnLastWindowClosed(false);
 
         auto mainWindow = std::make_unique<QMainWindow>();
         Ui_MainWindow ui;
@@ -386,6 +408,9 @@ void TaskTrayApp::ShowControlPanel() {
         DebugLog("ShowControlPanel: Control panel window initialized.");
 
         g_controlPanelWindow.store(rawWindow);
+
+        auto closeFilter = new ControlPanelCloseFilter(rawWindow);
+        rawWindow->installEventFilter(closeFilter);
 
         QObject::connect(&app, &QApplication::aboutToQuit, [resetState]() {
             DebugLog("ShowControlPanel: QApplication about to quit.");
