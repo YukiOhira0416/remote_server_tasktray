@@ -25,6 +25,8 @@
 #include <dbt.h>
 #include <atomic>
 #include <thread>
+#include <memory>
+#include <cstdint>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QMainWindow>
 #include <QtCore/QMetaObject>
@@ -42,6 +44,7 @@ constexpr UINT ID_CONTROL_PANEL = 300;
 
 std::atomic<bool> g_controlPanelRunning{ false };
 std::atomic<QMainWindow*> g_controlPanelWindow{ nullptr };
+std::atomic<std::uint64_t> g_controlPanelToken{ 0 };
 }
 
 
@@ -314,53 +317,78 @@ void TaskTrayApp::SetCaptureMode(int mode) {
 }
 
 void TaskTrayApp::ShowControlPanel() {
-    if (g_controlPanelRunning.load()) {
-        if (auto window = g_controlPanelWindow.load()) {
-            QMetaObject::invokeMethod(window, [window]() {
-                window->setWindowState(window->windowState() & ~Qt::WindowMinimized);
-                window->show();
-                window->raise();
-                window->activateWindow();
-            }, Qt::QueuedConnection);
-        }
+    if (auto window = g_controlPanelWindow.load()) {
+        QMetaObject::invokeMethod(window, [window]() {
+            window->setWindowState(window->windowState() & ~Qt::WindowMinimized);
+            window->show();
+            window->raise();
+            window->activateWindow();
+        }, Qt::QueuedConnection);
         DebugLog("ShowControlPanel: Control panel already running. Bringing window to front.");
         return;
     }
 
-    DebugLog("ShowControlPanel: Launching control panel UI.");
-    g_controlPanelRunning.store(true);
+    bool expected = false;
+    if (!g_controlPanelRunning.compare_exchange_strong(expected, true)) {
+        DebugLog("ShowControlPanel: Control panel launch already in progress. No new window created.");
+        return;
+    }
 
-    std::thread([]() {
+    std::uint64_t token = g_controlPanelToken.fetch_add(1) + 1;
+
+    DebugLog("ShowControlPanel: Launching control panel UI.");
+
+    std::thread([token]() {
         int argc = 0;
         char* argv[] = { nullptr };
         QApplication app(argc, argv);
 
-        QMainWindow mainWindow;
+        auto mainWindow = std::make_unique<QMainWindow>();
         Ui_MainWindow ui;
-        ui.setupUi(&mainWindow);
+        ui.setupUi(mainWindow.get());
+
+        QMainWindow* rawWindow = mainWindow.get();
+
+        auto resetState = [token, rawWindow]() {
+            bool pointerCleared = false;
+            if (g_controlPanelWindow.load() == rawWindow) {
+                g_controlPanelWindow.store(nullptr);
+                pointerCleared = true;
+                DebugLog("ShowControlPanel: Cleared control panel window pointer.");
+            }
+
+            if (g_controlPanelToken.load() == token) {
+                if (g_controlPanelRunning.exchange(false)) {
+                    DebugLog("ShowControlPanel: Cleared control panel running flag.");
+                }
+            }
+            else if (pointerCleared) {
+                DebugLog("ShowControlPanel: Window pointer cleared for stale control panel session.");
+            }
+        };
+
+        struct CleanupGuard {
+            std::function<void()> fn;
+            ~CleanupGuard() { if (fn) fn(); }
+        } cleanupGuard{ resetState };
 
         DebugLog("ShowControlPanel: Control panel window initialized.");
 
-        g_controlPanelWindow.store(&mainWindow);
+        g_controlPanelWindow.store(rawWindow);
 
-        QObject::connect(&app, &QApplication::aboutToQuit, []() {
-            g_controlPanelWindow.store(nullptr);
-            g_controlPanelRunning.store(false);
+        QObject::connect(&app, &QApplication::aboutToQuit, [resetState]() {
             DebugLog("ShowControlPanel: QApplication about to quit.");
+            resetState();
         });
 
-        QObject::connect(&mainWindow, &QObject::destroyed, []() {
-            g_controlPanelWindow.store(nullptr);
-            g_controlPanelRunning.store(false);
+        QObject::connect(rawWindow, &QObject::destroyed, [resetState]() {
             DebugLog("ShowControlPanel: Control panel window destroyed.");
+            resetState();
         });
 
-        mainWindow.show();
+        rawWindow->show();
         DebugLog("ShowControlPanel: Entering Qt event loop for control panel.");
         app.exec();
-
-        g_controlPanelWindow.store(nullptr);
-        g_controlPanelRunning.store(false);
         DebugLog("ShowControlPanel: Qt event loop exited.");
     }).detach();
 }
