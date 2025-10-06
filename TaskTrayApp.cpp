@@ -32,6 +32,7 @@
 #include <QtCore/QMetaObject>
 #include <QtCore/QObject>
 #include <QtCore/Qt>
+#include <QtCore/QCoreApplication>
 #include "ui_Main_UI.h"
 
 
@@ -318,14 +319,24 @@ void TaskTrayApp::SetCaptureMode(int mode) {
 
 void TaskTrayApp::ShowControlPanel() {
     if (auto window = g_controlPanelWindow.load()) {
-        QMetaObject::invokeMethod(window, [window]() {
-            window->setWindowState(window->windowState() & ~Qt::WindowMinimized);
-            window->show();
-            window->raise();
-            window->activateWindow();
-        }, Qt::QueuedConnection);
-        DebugLog("ShowControlPanel: Control panel already running. Bringing window to front.");
-        return;
+        const bool isRunning = g_controlPanelRunning.load();
+        QCoreApplication* appInstance = QCoreApplication::instance();
+        if (!isRunning || appInstance == nullptr || QCoreApplication::closingDown()) {
+            QMainWindow* expectedWindow = window;
+            if (g_controlPanelWindow.compare_exchange_strong(expectedWindow, nullptr)) {
+                DebugLog("ShowControlPanel: Cleared stale control panel window before relaunch.");
+            }
+        }
+        else {
+            QMetaObject::invokeMethod(window, [window]() {
+                window->setWindowState(window->windowState() & ~Qt::WindowMinimized);
+                window->show();
+                window->raise();
+                window->activateWindow();
+            }, Qt::QueuedConnection);
+            DebugLog("ShowControlPanel: Control panel already running. Bringing window to front.");
+            return;
+        }
     }
 
     bool expected = false;
