@@ -179,5 +179,8 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
         return -1;
     }
     DebugLog("WinMain: TaskTrayApp initialized successfully.");
-    return app.Run();
+    int rc = app.Run();
+    // どの終了経路でも thread join / handle close を保証
+    app.Cleanup();
+    return rc;
 }

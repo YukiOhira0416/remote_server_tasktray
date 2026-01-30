@@ -78,14 +78,20 @@ bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::s
     hMapFile_WriteSharedMemory = CreateFileMappingW(INVALID_HANDLE_VALUE, &sa, PAGE_READWRITE, 0, SHARED_MEMORY_SIZE, fullName.c_str());
     if (hMapFile_WriteSharedMemory == NULL) {
         DWORD error = GetLastError();
-        if (error == ERROR_ALREADY_EXISTS) {
+        if (error == ERROR_ALREADY_EXISTS || error == ERROR_ACCESS_DENIED) {
             hMapFile_WriteSharedMemory = OpenFileMappingW(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, fullName.c_str());
             if (hMapFile_WriteSharedMemory == NULL) {
                 DebugLog("WriteSharedMemory: OpenFileMappingW failed with error: " + std::to_string(GetLastError()));
-                LocalFree(sa.lpSecurityDescriptor);
-                ReleaseMutex(hMutex);
-                CloseHandle(hMutex);
-                return false;
+                // まだ作れていない可能性もあるので、最後に SA無しで作成を試す（Local用途の救済）
+                DebugLog("WriteSharedMemory: retry CreateFileMappingW with NULL security attributes.");
+                hMapFile_WriteSharedMemory = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, SHARED_MEMORY_SIZE, fullName.c_str());
+                if (hMapFile_WriteSharedMemory == NULL) {
+                    DebugLog("WriteSharedMemory: retry CreateFileMappingW failed with error: " + std::to_string(GetLastError()));
+                    LocalFree(sa.lpSecurityDescriptor);
+                    ReleaseMutex(hMutex);
+                    CloseHandle(hMutex);
+                    return false;
+                }
             }
         }
         else {
@@ -142,71 +148,35 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
     WaitForSingleObject(hMutex, INFINITE);
     DebugLog("ReadSharedMemory: Mutex acquired.");
 
-    std::wstring eventName = L"Global\\" + ConvertStringToWString(name) + L"_Event";
-    HANDLE hEventFile = OpenEventW(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, eventName.c_str());
-    if (hEventFile == NULL) {
+    // Event が無いと常に空になる設計は起動直後に弱い。
+    // まず mapping を直接読みに行く（Event は通知用途に留める）。
+    std::wstring sharedMemoryName = L"Global\\" + ConvertStringToWString(name);
+    HANDLE hMapFile = OpenFileMappingW(FILE_MAP_READ, FALSE, sharedMemoryName.c_str());
+    if (hMapFile == NULL) {
         DWORD error = GetLastError();
-        DebugLog("ReadSharedMemory: OpenEventW failed with error: " + std::to_string(error) + " (" + std::system_category().message(error) + ")");
-        if (error == ERROR_FILE_NOT_FOUND) {
-            ReleaseMutex(hMutex);
-            CloseHandle(hMutex);
-            return "";
-        }
-        else {
-            return "";
-        }
-    }
-    else {
-        DebugLog("ReadSharedMemory: OpenEventW succeeded.");
-    }
-    DebugLog("ReadSharedMemory: Waiting for event handle: " + std::to_string(reinterpret_cast<uintptr_t>(hEventFile)));
-
-    DWORD dwWaitResult = WaitForSingleObject(hEventFile, 5000);
-    std::string data;
-    if (dwWaitResult == WAIT_OBJECT_0) {
-        std::wstring sharedMemoryName = L"Global\\" + ConvertStringToWString(name);
-        HANDLE hMapFile = OpenFileMappingW(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, sharedMemoryName.c_str());
-        if (hMapFile == NULL) {
-            DebugLog("ReadSharedMemory: OpenFileMappingW failed with error: " + std::to_string(GetLastError()));
-            CloseHandle(hEventFile);
-            ReleaseMutex(hMutex);
-            CloseHandle(hMutex);
-            return "";
-        }
-
-        LPVOID pBuf = MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, SHARED_MEMORY_SIZE);
-        if (pBuf == NULL) {
-            DebugLog("ReadSharedMemory: MapViewOfFile failed with error: " + std::to_string(GetLastError()));
-            CloseHandle(hMapFile);
-            CloseHandle(hEventFile);
-            ReleaseMutex(hMutex);
-            CloseHandle(hMutex);
-            return "";
-        }
-
-        data = std::string(static_cast<char*>(pBuf));
-
-        if (data.empty()) {
-            DebugLog("ReadSharedMemory: Error - returned empty data for " + name);
-        }
-
-        UnmapViewOfFile(pBuf);
-        CloseHandle(hMapFile);
-
+        DebugLog("ReadSharedMemory: OpenFileMappingW failed with error: " + std::to_string(error) + " (" + std::system_category().message(error) + ")");
         ReleaseMutex(hMutex);
-        DebugLog("ReadSharedMemory: Mutex released.");
         CloseHandle(hMutex);
-
-        return data;
-    }
-    else if (dwWaitResult == WAIT_TIMEOUT) {
-        DebugLog("ReadSharedMemory: WaitForSingleObject timed out.");
-    }
-    else {
-        DebugLog("ReadSharedMemory: WaitForSingleObject failed with error: " + std::to_string(GetLastError()));
+        return "";
     }
 
-    CloseHandle(hEventFile);
+    LPVOID pBuf = MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, SHARED_MEMORY_SIZE);
+    if (pBuf == NULL) {
+        DebugLog("ReadSharedMemory: MapViewOfFile failed with error: " + std::to_string(GetLastError()));
+        CloseHandle(hMapFile);
+        ReleaseMutex(hMutex);
+        CloseHandle(hMutex);
+        return "";
+    }
+
+    std::string data = std::string(static_cast<char*>(pBuf));
+
+    if (data.empty()) {
+        DebugLog("ReadSharedMemory: returned empty data for " + name);
+    }
+
+    UnmapViewOfFile(pBuf);
+    CloseHandle(hMapFile);
 
     ReleaseMutex(hMutex);
     DebugLog("ReadSharedMemory: Mutex released.");
