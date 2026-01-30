@@ -1,23 +1,22 @@
-﻿// SharedMemoryHelper.h
 #ifndef SHAREDMEMORYHELPER_H
 #define SHAREDMEMORYHELPER_H
 
 #include <string>
-#include <unordered_map>
 #include <windows.h>
-#include "TaskTrayApp.h"
 
 class SharedMemoryHelper {
 public:
-    SharedMemoryHelper(TaskTrayApp* app);
-    bool WriteSharedMemory(const std::string& name, const std::string& data);
-    std::string ReadSharedMemory(const std::string& name);
-    void SignalEvent(const std::string& name);
-    bool DeleteSharedMemory(); // メソッドの宣言を追加
-    bool DeleteEvent();
+    SharedMemoryHelper();
 
-private:
-    TaskTrayApp* app; // TaskTrayApp クラスのインスタンスを保持するメンバー変数
+    // Writes data to an existing shared memory block. Returns false if the block does not exist.
+    // Also signals the associated event if it exists.
+    bool WriteSharedMemory(const std::string& name, const std::string& data);
+
+    // Reads data from an existing shared memory block. Returns empty string if the block does not exist.
+    std::string ReadSharedMemory(const std::string& name);
+
+    // Signals an existing event.
+    void SignalEvent(const std::string& name);
 };
 
 #endif // SHAREDMEMORYHELPER_H

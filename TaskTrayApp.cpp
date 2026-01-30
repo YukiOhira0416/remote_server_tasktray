@@ -1,4 +1,4 @@
-﻿#include "TaskTrayApp.h"
+#include "TaskTrayApp.h"
 #include "StringConversion.h"
 #include "Utility.h"
 #include "SharedMemoryHelper.h"
@@ -184,9 +184,10 @@ bool TaskTrayApp::Cleanup() {
     running = false;
 
     // 共有メモリとイベントを削除
-    SharedMemoryHelper sharedMemoryHelper(this);
-    sharedMemoryHelper.DeleteSharedMemory();
-    sharedMemoryHelper.DeleteEvent();
+    // SharedMemoryHelper is now Open-only and client-side doesn't delete anything.
+    // SharedMemoryHelper sharedMemoryHelper;
+    // sharedMemoryHelper.DeleteSharedMemory(); // REMOVED
+    // sharedMemoryHelper.DeleteEvent(); // REMOVED
 
     return true;
 }
@@ -250,18 +251,23 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
         RemoveMenu(hMenu, 0, MF_BYPOSITION);
     }
 
-    SharedMemoryHelper sharedMemoryHelper(this);
+    SharedMemoryHelper sharedMemoryHelper; // No args
     std::string numDisplaysStr = sharedMemoryHelper.ReadSharedMemory("DISP_INFO_NUM");
+
+    if (numDisplaysStr.empty()) {
+        DebugLog("UpdateDisplayMenu: Shared Memory not ready (DISP_INFO_NUM empty).");
+        AppendMenu(hMenu, MF_STRING | MF_GRAYED, 0, _T("Service not ready"));
+        return;
+    }
+
     int numDisplays = 0;
-    if (!numDisplaysStr.empty()) {
-        try {
-            numDisplays = std::stoi(numDisplaysStr);
-        }
-        catch (const std::exception& e) {
-            DebugLog("UpdateDisplayMenu: Failed to parse DISP_INFO_NUM: " + std::string(e.what()));
-            AppendMenu(hMenu, MF_STRING | MF_GRAYED, 0, _T("Error reading displays"));
-            return;
-        }
+    try {
+        numDisplays = std::stoi(numDisplaysStr);
+    }
+    catch (const std::exception& e) {
+        DebugLog("UpdateDisplayMenu: Failed to parse DISP_INFO_NUM: " + std::string(e.what()));
+        AppendMenu(hMenu, MF_STRING | MF_GRAYED, 0, _T("Error reading displays"));
+        return;
     }
 
     if (numDisplays == 0) {
@@ -269,22 +275,36 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
         return;
     }
 
+    // Get currently selected monitor DeviceID
     std::string selectedDisplaySerial = sharedMemoryHelper.ReadSharedMemory("DISP_INFO");
     DebugLog("UpdateDisplayMenu: Currently selected display serial: " + selectedDisplaySerial);
 
     for (int idx = 0; idx < numDisplays; ++idx) {
-        std::string key = "DISP_INFO_" + std::to_string(idx);
-        std::string currentDisplaySerial = sharedMemoryHelper.ReadSharedMemory(key);
+        // Read DeviceID (e.g., MONITOR\GSM5B09\...)
+        std::string keyID = "DISP_INFO_" + std::to_string(idx);
+        std::string currentDisplaySerial = sharedMemoryHelper.ReadSharedMemory(keyID);
+
+        // Read Friendly Name (e.g., "LG UltraFine")
+        std::string keyName = "DISP_NAME_" + std::to_string(idx);
+        std::string displayNameStr = sharedMemoryHelper.ReadSharedMemory(keyName);
+
+        // Fallback name if missing
+        std::wstring displayNameW;
+        if (displayNameStr.empty()) {
+             displayNameW = L"Display " + std::to_wstring(idx + 1);
+        } else {
+             displayNameW = utf8_to_utf16(displayNameStr);
+        }
 
         UINT flags = MF_STRING;
+        // Check if this is the selected one
         if (!currentDisplaySerial.empty() && currentDisplaySerial == selectedDisplaySerial) {
             flags |= MF_CHECKED;
         }
 
-        std::wstring displayName = L"Display " + std::to_wstring(idx + 1);
         UINT commandId = ID_DISPLAY_BASE + idx; // Menu command IDs are 0-indexed.
 
-        if (!AppendMenu(hMenu, flags, commandId, displayName.c_str())) {
+        if (!AppendMenu(hMenu, flags, commandId, displayNameW.c_str())) {
             DebugLog("UpdateDisplayMenu: Failed to add menu item for Display " + std::to_string(idx + 1));
         }
     }
@@ -296,7 +316,7 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
     // displayIndex is 0-based from the menu and maps to DISP_INFO_{index}
     DebugLog("SelectDisplay: User selected display at index " + std::to_string(displayIndex));
 
-    SharedMemoryHelper sharedMemoryHelper(this);
+    SharedMemoryHelper sharedMemoryHelper; // No args
 
     // Read the serial number for the selected index from shared memory (0-based)
     std::string key = "DISP_INFO_" + std::to_string(displayIndex);
@@ -307,9 +327,13 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
         return;
     }
 
-    // Persist the new selection to shared memory (Service will handle logic)
+    // Persist the new selection to shared memory
     if (sharedMemoryHelper.WriteSharedMemory("DISP_INFO", selectedSerial)) {
         DebugLog("SelectDisplay: New display selected. Serial: " + selectedSerial);
+
+        // Signal the event to notify the service
+        sharedMemoryHelper.SignalEvent("DISP_INFO");
+
         // Update the tray icon tooltip to reflect the new selection
         std::wstring newTooltip = L"Display Manager - Selected: Display " + std::to_wstring(displayIndex + 1);
         UpdateTrayTooltip(newTooltip);
@@ -319,7 +343,7 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
 }
 
 void TaskTrayApp::SetCaptureMode(int mode) {
-    SharedMemoryHelper sharedMemoryHelper(this);
+    SharedMemoryHelper sharedMemoryHelper; // No args
     std::string modeValue = std::to_string(mode);
     DebugLog("SetCaptureMode: Setting capture mode to " + modeValue);
     if (sharedMemoryHelper.WriteSharedMemory("Capture_Mode", modeValue)) {
@@ -422,7 +446,7 @@ void TaskTrayApp::ShowControlPanel() {
 
 void TaskTrayApp::PulseRebootFlag() {
     std::thread([this]() {
-        SharedMemoryHelper helper(this);
+        SharedMemoryHelper helper; // No args
         DebugLog("PulseRebootFlag: Setting REBOOT to 1.");
         helper.WriteSharedMemory("REBOOT", "1");
         Sleep(1000);
@@ -462,7 +486,7 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
         case WM_USER + 2: // Custom message to refresh UI (e.g., after display change)
         {
             DebugLog("WindowProc: WM_USER + 2 - Refreshing UI.");
-            SharedMemoryHelper sharedMemoryHelper(app);
+            SharedMemoryHelper sharedMemoryHelper; // No args
             std::string selectedSerial = sharedMemoryHelper.ReadSharedMemory("DISP_INFO");
             std::string numDisplaysStr = sharedMemoryHelper.ReadSharedMemory("DISP_INFO_NUM");
             int numDisplays = 0;
@@ -510,7 +534,7 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
                 if (cmdId >= ID_DISPLAY_BASE && cmdId < 200) { // Display items are in this range
                     int idx0 = (cmdId - ID_DISPLAY_BASE);      // 0-based index for shared memory
                     int overlayNumber = idx0 + 1;  // 1-based number for display label
-                    SharedMemoryHelper smh(app);
+                    SharedMemoryHelper smh; // No args
                     std::string key = "DISP_INFO_" + std::to_string(idx0);
                     std::string serial = smh.ReadSharedMemory(key);
                     if (!serial.empty()) {
@@ -584,7 +608,7 @@ bool TaskTrayApp::RefreshDisplayList() {
     // Only read from Shared Memory to update UI state (tooltip).
     DebugLog("RefreshDisplayList: Updating UI from Shared Memory.");
 
-    SharedMemoryHelper sharedMemoryHelper(this);
+    SharedMemoryHelper sharedMemoryHelper; // No args
     std::string numDisplaysStr = sharedMemoryHelper.ReadSharedMemory("DISP_INFO_NUM");
     if (numDisplaysStr.empty()) {
         DebugLog("RefreshDisplayList: Shared Memory not ready.");
@@ -648,7 +672,7 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
         RemoveMenu(hMenu, 0, MF_BYPOSITION);
     }
 
-    SharedMemoryHelper sharedMemoryHelper(this);
+    SharedMemoryHelper sharedMemoryHelper; // No args
     std::string captureModeStr = sharedMemoryHelper.ReadSharedMemory("Capture_Mode");
     int captureMode = 1;
 
@@ -674,4 +698,3 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
     AppendMenu(hMenu, normalFlags, ID_CAPTURE_MODE_NORMAL, _T("Normal Mode"));
     AppendMenu(hMenu, gameFlags, ID_CAPTURE_MODE_GAME, _T("Game Mode"));
 }
-

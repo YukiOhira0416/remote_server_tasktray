@@ -5,11 +5,10 @@
 #include <windowsx.h>
 #include <dwmapi.h>
 #include <vector>
-#include <dxgi.h>
 #include <ShellScalingApi.h>
 
 #pragma comment(lib, "dwmapi.lib")
-#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "shcore.lib") // For GetDpiForMonitor
 
 // DPI-aware dimensions
 const int OVERLAY_WIDTH_DP = 220;
@@ -47,6 +46,72 @@ void OverlayManager::RegisterWindowClass() {
 
 LRESULT CALLBACK OverlayManager::OverlayWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+// Callback context for EnumDisplayMonitors
+struct MonitorSearchContext {
+    std::string targetSerial;
+    RECT foundRect;
+    HMONITOR foundHMon;
+    UINT foundDpi;
+    bool found;
+};
+
+// Callback function for EnumDisplayMonitors
+BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
+    MonitorSearchContext* ctx = (MonitorSearchContext*)dwData;
+    MONITORINFOEXW mi;
+    mi.cbSize = sizeof(mi);
+    if (GetMonitorInfoW(hMonitor, &mi)) {
+        DISPLAY_DEVICEW ddMonitor = { sizeof(ddMonitor) };
+        // We use mi.szDevice (adapter name) to get the monitor device info
+        if (EnumDisplayDevicesW(mi.szDevice, 0, &ddMonitor, 0)) {
+            std::string currentSerial = ConvertWStringToString(ddMonitor.DeviceID);
+
+            // DebugLog("EnumMonitor: " + currentSerial + " vs " + ctx->targetSerial);
+
+            // Assume the serial from shared memory matches the PnP ID (DeviceID)
+            if (currentSerial == ctx->targetSerial) {
+                 ctx->foundRect = mi.rcMonitor;
+                 ctx->foundHMon = hMonitor;
+
+                 UINT dpiX, dpiY;
+                 if (SUCCEEDED(GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
+                     ctx->foundDpi = dpiX;
+                 } else {
+                     ctx->foundDpi = 96;
+                 }
+                 ctx->found = true;
+                 return FALSE; // Stop enumeration
+            }
+        }
+    }
+    return TRUE; // Continue
+}
+
+bool OverlayManager::ResolveMonitorInfoBySerial(const std::string& serialUtf8, RECT& outRect, HMONITOR& outMon, UINT& outDpi) {
+    DebugLog("OverlayManager: Resolving monitor info for serial: " + serialUtf8);
+
+    // We no longer read GPU_INFO or use DXGI.
+    // We strictly use the serial (PnP ID) to find the monitor via Win32 API.
+
+    MonitorSearchContext ctx;
+    ctx.targetSerial = serialUtf8;
+    ctx.found = false;
+    ctx.foundDpi = 96;
+
+    EnumDisplayMonitors(NULL, NULL, MonitorEnumProc, (LPARAM)&ctx);
+
+    if (ctx.found) {
+        outRect = ctx.foundRect;
+        outMon = ctx.foundHMon;
+        outDpi = ctx.foundDpi;
+        DebugLog("OverlayManager: Found matching monitor.");
+        return true;
+    }
+
+    DebugLog("OverlayManager: Failed to find a monitor with serial: " + serialUtf8);
+    return false;
 }
 
 void OverlayManager::ShowNumberForSerial(int number, const std::string& serialUtf8) {
@@ -87,91 +152,6 @@ void OverlayManager::Cleanup() {
         }
     }
     overlayWindows_.clear();
-}
-
-bool OverlayManager::ResolveMonitorInfoBySerial(const std::string& serialUtf8, RECT& outRect, HMONITOR& outMon, UINT& outDpi) {
-    DebugLog("OverlayManager: Resolving monitor info for serial: " + serialUtf8);
-
-    SharedMemoryHelper smh(nullptr);
-    std::string gpuInfo = smh.ReadSharedMemory("GPU_INFO");
-    if (gpuInfo.empty()) {
-        DebugLog("OverlayManager: GPU_INFO is empty. Cannot resolve monitor.");
-        return false;
-    }
-
-    std::string gpuVendorID, gpuDeviceID;
-    size_t delimiter = gpuInfo.find(":");
-    if (delimiter != std::string::npos) {
-        gpuVendorID = gpuInfo.substr(0, delimiter);
-        gpuDeviceID = gpuInfo.substr(delimiter + 1);
-    } else {
-        DebugLog("OverlayManager: Invalid GPU_INFO format.");
-        return false;
-    }
-
-    unsigned int targetVendorID = std::stoul(gpuVendorID);
-    unsigned int targetDeviceID = std::stoul(gpuDeviceID);
-
-    IDXGIFactory* pFactory = nullptr;
-    if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory))) {
-        DebugLog("OverlayManager: Failed to create DXGIFactory.");
-        return false;
-    }
-
-    IDXGIAdapter* pAdapter = nullptr;
-    bool foundAdapter = false;
-    for (UINT i = 0; pFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND; ++i) {
-        DXGI_ADAPTER_DESC desc;
-        pAdapter->GetDesc(&desc);
-        if (desc.VendorId == targetVendorID && desc.DeviceId == targetDeviceID) {
-            foundAdapter = true;
-            break; // Found the adapter
-        }
-        pAdapter->Release();
-    }
-
-    if (!foundAdapter) {
-        DebugLog("OverlayManager: Could not find matching GPU adapter.");
-        pFactory->Release();
-        return false;
-    }
-
-    IDXGIOutput* pOutput = nullptr;
-    for (UINT i = 0; pAdapter->EnumOutputs(i, &pOutput) != DXGI_ERROR_NOT_FOUND; ++i) {
-        DXGI_OUTPUT_DESC outputDesc;
-        pOutput->GetDesc(&outputDesc);
-
-        MONITORINFOEXW mi;
-        mi.cbSize = sizeof(mi);
-        if (GetMonitorInfoW(outputDesc.Monitor, &mi)) {
-            DISPLAY_DEVICEW ddMonitor = { sizeof(ddMonitor) };
-            // IMPORTANT: Use the same flags as when we stored the serials (flags = 0)
-            if (EnumDisplayDevicesW(mi.szDevice, 0, &ddMonitor, 0)) {
-                std::string currentSerial = ConvertWStringToString(ddMonitor.DeviceID);
-                if (currentSerial == serialUtf8) {
-                    DebugLog("OverlayManager: Found matching monitor. Serial: " + currentSerial);
-                    outRect = mi.rcMonitor;
-                    outMon = outputDesc.Monitor;
-                    UINT dpiX, dpiY;
-                    if (SUCCEEDED(GetDpiForMonitor(outMon, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
-                        outDpi = dpiX;
-                    } else {
-                        outDpi = 96; // Default DPI
-                    }
-                    pOutput->Release();
-                    pAdapter->Release();
-                    pFactory->Release();
-                    return true;
-                }
-            }
-        }
-        pOutput->Release();
-    }
-
-    pAdapter->Release();
-    pFactory->Release();
-    DebugLog("OverlayManager: Failed to find a monitor with serial: " + serialUtf8);
-    return false;
 }
 
 void OverlayManager::EnsureOverlayWindow(int index, const RECT& monRect, int number, UINT dpi) {
