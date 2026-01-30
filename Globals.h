@@ -1,6 +1,5 @@
 ﻿#pragma once
 #include <vector>
-#include "DisplayManager.h"
 
 // グローバル変数の宣言
 

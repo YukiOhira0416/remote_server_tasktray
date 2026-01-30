@@ -21,7 +21,6 @@ public:
     void SelectDisplay(int displayIndex);
     void SetCaptureMode(int mode);
     void ShowControlPanel();
-    void MonitorDisplayChanges();
     bool RefreshDisplayList();
     bool Cleanup();
 
@@ -33,10 +32,8 @@ private:
     HINSTANCE hInstance;
     HWND hwnd;
     NOTIFYICONDATA nid;
-    std::thread monitorThread;
     std::atomic<bool> running = true;
     std::atomic<bool> cleaned = false;
-    std::string lastSystemPrimarySerial; // Tracks last OS primary monitor serial
 };
 
 #endif // TASKTRAYAPP_H

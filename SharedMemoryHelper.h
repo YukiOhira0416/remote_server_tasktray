@@ -18,7 +18,6 @@ public:
 
 private:
     TaskTrayApp* app; // TaskTrayApp クラスのインスタンスを保持するメンバー変数
-    SECURITY_ATTRIBUTES CreateSecurityAttributes(); // メンバー関数として宣言
 };
 
 #endif // SHAREDMEMORYHELPER_H

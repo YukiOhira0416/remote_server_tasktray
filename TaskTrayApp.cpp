@@ -1,9 +1,6 @@
 ﻿#include "TaskTrayApp.h"
 #include "StringConversion.h"
 #include "Utility.h"
-#include "GPUManager.h"
-#include "DisplayManager.h"
-#include "RegistryHelper.h"
 #include "SharedMemoryHelper.h"
 #include <tchar.h>
 #include <iostream>
@@ -152,20 +149,9 @@ bool TaskTrayApp::Initialize() {
 
     // 初回ディスプレイ情報取得
     if (!RefreshDisplayList()) {
-        DebugLog("Initialize: RefreshDisplayList failed. Abort initialization cleanly.");
-        Cleanup();
-        return false;
+        DebugLog("Initialize: RefreshDisplayList failed (Service not ready?). Continue anyway.");
+        // We do not abort here, as the service might start later.
     }
-
-    // Initialize unplug-notification flag (REBOOT) to 0
-    {
-        SharedMemoryHelper sharedMemoryHelper(this);
-        sharedMemoryHelper.WriteSharedMemory("REBOOT", "0");
-        sharedMemoryHelper.WriteSharedMemory("Capture_Mode", "1");
-    }
-
-    // ディスプレイの接続・切断を監視するスレッドを起動
-    monitorThread = std::thread(&TaskTrayApp::MonitorDisplayChanges, this);
 
     return true;
 }
@@ -196,9 +182,6 @@ bool TaskTrayApp::Cleanup() {
 
     // スレッドの停止を指示
     running = false;
-    if (monitorThread.joinable()) {
-        monitorThread.join();
-    }
 
     // 共有メモリとイベントを削除
     SharedMemoryHelper sharedMemoryHelper(this);
@@ -324,26 +307,26 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
         return;
     }
 
-    // Persist the new selection to shared memory and registry
-    sharedMemoryHelper.WriteSharedMemory("DISP_INFO", selectedSerial);
-    RegistryHelper::WriteSelectedSerialToRegistry(selectedSerial);
-
-    DebugLog("SelectDisplay: New display selected. Serial: " + selectedSerial);
-
-    // Update the tray icon tooltip to reflect the new selection
-    std::wstring newTooltip = L"Display Manager - Selected: Display " + std::to_wstring(displayIndex + 1);
-    UpdateTrayTooltip(newTooltip);
-
-    // The menu check mark will be updated the next time it's opened,
-    // as UpdateDisplayMenu reads the latest selection from DISP_INFO.
+    // Persist the new selection to shared memory (Service will handle logic)
+    if (sharedMemoryHelper.WriteSharedMemory("DISP_INFO", selectedSerial)) {
+        DebugLog("SelectDisplay: New display selected. Serial: " + selectedSerial);
+        // Update the tray icon tooltip to reflect the new selection
+        std::wstring newTooltip = L"Display Manager - Selected: Display " + std::to_wstring(displayIndex + 1);
+        UpdateTrayTooltip(newTooltip);
+    } else {
+        DebugLog("SelectDisplay: Failed to write to shared memory (Service not ready?).");
+    }
 }
 
 void TaskTrayApp::SetCaptureMode(int mode) {
     SharedMemoryHelper sharedMemoryHelper(this);
     std::string modeValue = std::to_string(mode);
     DebugLog("SetCaptureMode: Setting capture mode to " + modeValue);
-    sharedMemoryHelper.WriteSharedMemory("Capture_Mode", modeValue);
-    PulseRebootFlag();
+    if (sharedMemoryHelper.WriteSharedMemory("Capture_Mode", modeValue)) {
+        PulseRebootFlag();
+    } else {
+        DebugLog("SetCaptureMode: Failed to write to shared memory (Service not ready?).");
+    }
 }
 
 void TaskTrayApp::ShowControlPanel() {
@@ -595,261 +578,42 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
 }
 
 
-void TaskTrayApp::MonitorDisplayChanges() {
-    while (running) {
-        Sleep(2000); // Poll every 2 seconds
-
-        // Get GPU info for enumeration
-        SharedMemoryHelper sharedMemoryHelper(this);
-        std::string gpuInfo = sharedMemoryHelper.ReadSharedMemory("GPU_INFO");
-        if (gpuInfo.empty()) {
-            DebugLog("MonitorDisplayChanges: GPU_INFO is empty. Skipping check.");
-            continue;
-        }
-
-        std::string gpuVendorID, gpuDeviceID;
-        size_t delimiter = gpuInfo.find(":");
-        if (delimiter != std::string::npos) {
-            gpuVendorID = gpuInfo.substr(0, delimiter);
-            gpuDeviceID = gpuInfo.substr(delimiter + 1);
-        }
-        else {
-            DebugLog("MonitorDisplayChanges: Invalid GPU_INFO format.");
-            continue;
-        }
-
-        // Get current OS primary monitor serial and detect change
-        std::string currentSystemPrimary = DisplayManager::GetSystemPrimaryDisplaySerial();
-        bool primaryChanged = false;
-        if (!currentSystemPrimary.empty() && currentSystemPrimary != lastSystemPrimarySerial) {
-            primaryChanged = true;
-            lastSystemPrimarySerial = currentSystemPrimary;
-        }
-
-        // Get current display list from hardware
-        auto newDisplays = DisplayManager::GetDisplaysForGPU(gpuVendorID, gpuDeviceID);
-
-        // Get old display list from registry
-        std::vector<std::string> oldDisplaySerials = RegistryHelper::ReadDISPInfoFromRegistry();
-
-        // Convert new display list to a vector of serials for easy comparison
-        std::vector<std::string> newDisplaySerials;
-        for (const auto& display : newDisplays) {
-            newDisplaySerials.push_back(display.serialNumber);
-        }
-
-        // Only proceed if the display topology changed, or OS primary changed
-        if (oldDisplaySerials == newDisplaySerials && !primaryChanged) {
-            continue;
-        }
-
-        DebugLog("MonitorDisplayChanges: Detected topology or OS primary change.");
-
-        // Detect if any known display disappeared (unplugged)
-        bool removalDetected = false;
-        for (const auto& oldSerial : oldDisplaySerials) {
-            if (std::find(newDisplaySerials.begin(), newDisplaySerials.end(), oldSerial) == newDisplaySerials.end()) {
-                removalDetected = true;
-                break;
-            }
-        }
-
-        // Detect if any new display appeared (plugged in)
-        bool additionDetected = false;
-        for (const auto& newSerial : newDisplaySerials) {
-            if (std::find(oldDisplaySerials.begin(), oldDisplaySerials.end(), newSerial) == oldDisplaySerials.end()) {
-                additionDetected = true;
-                break;
-            }
-        }
-
-        // Get the last known selected display from the registry
-        std::string lastSelectedSerial = RegistryHelper::ReadSelectedSerialFromRegistry();
-        std::string newSelectedSerial = "";
-
-        // Check if the previously selected display is still connected
-        bool selectionStillExists = false;
-        if (!lastSelectedSerial.empty()) {
-            for (const auto& display : newDisplays) {
-                if (display.serialNumber == lastSelectedSerial) {
-                    selectionStillExists = true;
-                    break;
-                }
-            }
-        }
-
-        // Decide newSelectedSerial. The indexed list remains strictly in port order.
-        if (primaryChanged) {
-            // Force selection to the new primary (within same GPU assumption)
-            auto itPrimary = std::find_if(newDisplays.begin(), newDisplays.end(), [](const DisplayInfo& d) { return d.isPrimary; });
-            if (itPrimary != newDisplays.end()) {
-                newSelectedSerial = itPrimary->serialNumber;
-                DebugLog("MonitorDisplayChanges: OS primary changed. Set selection to primary.");
-            } else if (selectionStillExists) {
-                newSelectedSerial = lastSelectedSerial;
-            } else if (!newDisplays.empty()) {
-                newSelectedSerial = newDisplays[0].serialNumber;
-            }
-        } else {
-            // Preserve user selection when possible; on unplug, prefer primary else first
-            if (selectionStillExists) {
-                newSelectedSerial = lastSelectedSerial;
-            } else {
-                auto itPrimary = std::find_if(newDisplays.begin(), newDisplays.end(), [](const DisplayInfo& d) { return d.isPrimary; });
-                if (itPrimary != newDisplays.end()) newSelectedSerial = itPrimary->serialNumber;
-                else if (!newDisplays.empty()) newSelectedSerial = newDisplays[0].serialNumber;
-            }
-        }
-
-        // Now, update everything: shared memory and registry (port order only)
-        // Shared Memory
-        sharedMemoryHelper.WriteSharedMemory("DISP_INFO_NUM", std::to_string(newDisplays.size()));
-        for (size_t i = 0; i < newDisplays.size(); ++i) {
-            std::string key = "DISP_INFO_" + std::to_string(i);
-            sharedMemoryHelper.WriteSharedMemory(key, newDisplays[i].serialNumber);
-        }
-        if (!newSelectedSerial.empty()) {
-            sharedMemoryHelper.WriteSharedMemory("DISP_INFO", newSelectedSerial);
-        }
-
-        // Pulse REBOOT=1 for 1 second on unplug or plug-in, then reset to 0
-        if (removalDetected || additionDetected) {
-            DebugLog("MonitorDisplayChanges: Plug/unplug detected. Pulsing REBOOT to 1 for 1 second.");
-            sharedMemoryHelper.WriteSharedMemory("REBOOT", "1");
-            TaskTrayApp* appPtr = this;
-            std::thread([appPtr]() {
-                Sleep(1000);
-                SharedMemoryHelper helper(appPtr);
-                helper.WriteSharedMemory("REBOOT", "0");
-            }).detach();
-        }
-
-        // Registry (SerialNumber1..n in port order)
-        RegistryHelper::ClearDISPInfoFromRegistry();
-        for (size_t i = 0; i < newDisplays.size(); ++i) {
-            RegistryHelper::WriteDISPInfoToRegistryAt(i + 1, newDisplays[i].serialNumber);
-        }
-        if (!newSelectedSerial.empty()) {
-            RegistryHelper::WriteSelectedSerialToRegistry(newSelectedSerial);
-        }
-
-        DebugLog("MonitorDisplayChanges: Updated registry and shared memory. New selection: " + newSelectedSerial);
-
-        // Post message to main thread to update UI
-        PostMessage(hwnd, WM_USER + 2, 0, 0); // WM_USER + 2 signals a UI refresh
-    }
-}
 
 
 bool TaskTrayApp::RefreshDisplayList() {
-    DebugLog("RefreshDisplayList: Starting display list refresh.");
+    // Only read from Shared Memory to update UI state (tooltip).
+    DebugLog("RefreshDisplayList: Updating UI from Shared Memory.");
 
-    // Get selected GPU info from shared memory
     SharedMemoryHelper sharedMemoryHelper(this);
-    std::string gpuInfo = sharedMemoryHelper.ReadSharedMemory("GPU_INFO");
-    if (gpuInfo.empty()) {
-        DebugLog("RefreshDisplayList: GPU_INFO is empty. Fallback to registry/GPU enumeration.");
-
-        // 1) Registry fallback
-        auto reg = RegistryHelper::ReadRegistry();
-        if (!reg.first.empty() && !reg.second.empty()) {
-            gpuInfo = reg.first + ":" + reg.second;
-            // shared memory へは best-effort
-            sharedMemoryHelper.WriteSharedMemory("GPU_INFO", gpuInfo);
-            DebugLog("RefreshDisplayList: Fallback GPU_INFO from registry: " + gpuInfo);
-        } else {
-            // 2) Enumerate GPU fallback
-            auto gpus = GPUManager::GetInstalledGPUs();
-            if (!gpus.empty()) {
-                const auto& g = gpus.back(); // 既存ロジックに合わせて最後を採用
-                gpuInfo = g.vendorID + ":" + g.deviceID;
-                RegistryHelper::WriteRegistry(g.vendorID, g.deviceID);
-                sharedMemoryHelper.WriteSharedMemory("GPU_INFO", gpuInfo);
-                DebugLog("RefreshDisplayList: Fallback GPU_INFO from enumeration: " + gpuInfo);
-            } else {
-                MessageBox(hwnd, _T("GPU information not found (no GPUs enumerated)."), _T("Error"), MB_OK | MB_ICONERROR);
-                return false;
-            }
-        }
-    }
-    DebugLog("RefreshDisplayList: Read GPU_INFO: " + gpuInfo);
-
-    std::string gpuVendorID, gpuDeviceID;
-    size_t delimiter = gpuInfo.find(":");
-    if (delimiter != std::string::npos) {
-        gpuVendorID = gpuInfo.substr(0, delimiter);
-        gpuDeviceID = gpuInfo.substr(delimiter + 1);
-    }
-    else {
-        DebugLog("RefreshDisplayList: Invalid GPU_INFO format.");
+    std::string numDisplaysStr = sharedMemoryHelper.ReadSharedMemory("DISP_INFO_NUM");
+    if (numDisplaysStr.empty()) {
+        DebugLog("RefreshDisplayList: Shared Memory not ready.");
+        UpdateTrayTooltip(L"Display Manager - Service not ready");
         return false;
     }
 
-    // Get displays sorted by Windows display number (DISPLAY1, DISPLAY2, ...)
-    std::vector<DisplayInfo> newDisplays = DisplayManager::GetDisplaysForGPU(gpuVendorID, gpuDeviceID);
-    DebugLog("RefreshDisplayList: Found " + std::to_string(newDisplays.size()) + " displays.");
+    // Update tooltip based on current selection
+    std::string selectedSerial = sharedMemoryHelper.ReadSharedMemory("DISP_INFO");
+    int numDisplays = 0;
+    try { numDisplays = std::stoi(numDisplaysStr); } catch (...) {}
 
-    // Update shared memory with the display list (in Windows display-number order)
-    sharedMemoryHelper.WriteSharedMemory("DISP_INFO_NUM", std::to_string(newDisplays.size()));
-    for (size_t i = 0; i < newDisplays.size(); ++i) {
-        std::string key = "DISP_INFO_" + std::to_string(i);
-        sharedMemoryHelper.WriteSharedMemory(key, newDisplays[i].serialNumber);
-    }
-
-    // Determine the initial selection.
-    // First, get the system-wide primary display.
-    std::string systemPrimarySerial = DisplayManager::GetSystemPrimaryDisplaySerial();
-    // Cache last known OS primary monitor serial for change detection in the monitor thread
-    lastSystemPrimarySerial = systemPrimarySerial;
-    std::string primaryDisplaySerial = "";
-
-    // Check if the system primary is in our list of displays for the selected GPU.
-    bool primaryFoundInList = false;
-    if (!systemPrimarySerial.empty()) {
-        for (const auto& display : newDisplays) {
-            if (display.serialNumber == systemPrimarySerial) {
-                primaryDisplaySerial = systemPrimarySerial;
-                primaryFoundInList = true;
-                DebugLog("RefreshDisplayList: System primary display is on the selected GPU. Using it for initial selection.");
-                break;
-            }
+    int selectedIndex = -1;
+    for (int idx = 0; idx < numDisplays; ++idx) {
+        std::string key = "DISP_INFO_" + std::to_string(idx);
+        if (sharedMemoryHelper.ReadSharedMemory(key) == selectedSerial) {
+            selectedIndex = idx + 1;
+            break;
         }
     }
 
-    // If the system primary wasn't found in our list (or if there's no system primary),
-    // fall back to the first display in the list as per original behavior.
-    if (!primaryFoundInList && !newDisplays.empty()) {
-        primaryDisplaySerial = newDisplays[0].serialNumber;
-        DebugLog("RefreshDisplayList: System primary not on this GPU or not found. Falling back to the first display.");
+    if (selectedIndex != -1) {
+        UpdateTrayTooltip(L"Display Manager - Selected: Display " + std::to_wstring(selectedIndex));
+    } else if (numDisplays > 0) {
+        UpdateTrayTooltip(L"Display Manager");
+    } else {
+        UpdateTrayTooltip(L"Display Manager - No displays");
     }
 
-    // Set initial selection to the primary display
-    if (!primaryDisplaySerial.empty()) {
-        sharedMemoryHelper.WriteSharedMemory("DISP_INFO", primaryDisplaySerial);
-        RegistryHelper::WriteSelectedSerialToRegistry(primaryDisplaySerial);
-        DebugLog("RefreshDisplayList: Set initial selected display to primary: " + primaryDisplaySerial);
-
-        // Also update the tooltip
-        int selectedIndex = -1;
-        for (size_t i = 0; i < newDisplays.size(); ++i) {
-            if (newDisplays[i].serialNumber == primaryDisplaySerial) {
-                selectedIndex = i + 1;
-                break;
-            }
-        }
-        if (selectedIndex != -1) {
-            std::wstring initialTooltip = L"Display Manager - Selected: Display " + std::to_wstring(selectedIndex);
-            UpdateTrayTooltip(initialTooltip);
-        }
-    }
-
-    // Update the registry with the display list (Windows display-number order)
-    RegistryHelper::ClearDISPInfoFromRegistry();
-    for (size_t i = 0; i < newDisplays.size(); ++i) {
-        RegistryHelper::WriteDISPInfoToRegistryAt(i + 1, newDisplays[i].serialNumber);
-    }
-
-    DebugLog("RefreshDisplayList: Display list refresh complete.");
     return true;
 }
 
