@@ -126,11 +126,8 @@ endif()
 set(SOURCES
     remote_server_tasktray.cpp
     TaskTrayApp.cpp
-    GPUManager.cpp
     DebugLog.cpp
-    DisplayManager.cpp
     Globals.cpp
-    RegistryHelper.cpp
     SharedMemoryHelper.cpp
     StringConversion.cpp
     Utility.cpp
@@ -144,12 +141,8 @@ set_property(SOURCE TaskTrayApp.cpp PROPERTY SKIP_AUTOUIC ON)
 set(HEADERS
     remote_server_tasktray.h
     TaskTrayApp.h
-    GPUManager.h
-    GPUInfo.h
     DebugLog.h
-    DisplayManager.h
     Globals.h
-    RegistryHelper.h
     SharedMemoryHelper.h
     StringConversion.h
     Utility.h
