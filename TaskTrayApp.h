@@ -22,7 +22,7 @@ public:
     void SetCaptureMode(int mode);
     void ShowControlPanel();
     void MonitorDisplayChanges();
-    void RefreshDisplayList();
+    bool RefreshDisplayList();
     bool Cleanup();
 
 
@@ -35,6 +35,7 @@ private:
     NOTIFYICONDATA nid;
     std::thread monitorThread;
     std::atomic<bool> running = true;
+    std::atomic<bool> cleaned = false;
     std::string lastSystemPrimarySerial; // Tracks last OS primary monitor serial
 };
 

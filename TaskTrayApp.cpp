@@ -151,7 +151,11 @@ bool TaskTrayApp::Initialize() {
     CreateTrayIcon();
 
     // 初回ディスプレイ情報取得
-    RefreshDisplayList();
+    if (!RefreshDisplayList()) {
+        DebugLog("Initialize: RefreshDisplayList failed. Abort initialization cleanly.");
+        Cleanup();
+        return false;
+    }
 
     // Initialize unplug-notification flag (REBOOT) to 0
     {
@@ -180,6 +184,10 @@ void TaskTrayApp::CreateTrayIcon() {
 }
 
 bool TaskTrayApp::Cleanup() {
+    // 2回呼ばれても安全にする（Exitメニュー + WinMain後処理など）
+    if (cleaned.exchange(true)) {
+        return true;
+    }
     // Clean up overlay windows
     OverlayManager::Instance().Cleanup();
 
@@ -733,17 +741,36 @@ void TaskTrayApp::MonitorDisplayChanges() {
 }
 
 
-void TaskTrayApp::RefreshDisplayList() {
+bool TaskTrayApp::RefreshDisplayList() {
     DebugLog("RefreshDisplayList: Starting display list refresh.");
 
     // Get selected GPU info from shared memory
     SharedMemoryHelper sharedMemoryHelper(this);
     std::string gpuInfo = sharedMemoryHelper.ReadSharedMemory("GPU_INFO");
     if (gpuInfo.empty()) {
-        DebugLog("RefreshDisplayList: GPU_INFO is empty. Cannot refresh display list.");
-        MessageBox(hwnd, _T("GPU information not found. The application will now exit."), _T("Error"), MB_OK | MB_ICONERROR);
-        PostQuitMessage(0);
-        return;
+        DebugLog("RefreshDisplayList: GPU_INFO is empty. Fallback to registry/GPU enumeration.");
+
+        // 1) Registry fallback
+        auto reg = RegistryHelper::ReadRegistry();
+        if (!reg.first.empty() && !reg.second.empty()) {
+            gpuInfo = reg.first + ":" + reg.second;
+            // shared memory へは best-effort
+            sharedMemoryHelper.WriteSharedMemory("GPU_INFO", gpuInfo);
+            DebugLog("RefreshDisplayList: Fallback GPU_INFO from registry: " + gpuInfo);
+        } else {
+            // 2) Enumerate GPU fallback
+            auto gpus = GPUManager::GetInstalledGPUs();
+            if (!gpus.empty()) {
+                const auto& g = gpus.back(); // 既存ロジックに合わせて最後を採用
+                gpuInfo = g.vendorID + ":" + g.deviceID;
+                RegistryHelper::WriteRegistry(g.vendorID, g.deviceID);
+                sharedMemoryHelper.WriteSharedMemory("GPU_INFO", gpuInfo);
+                DebugLog("RefreshDisplayList: Fallback GPU_INFO from enumeration: " + gpuInfo);
+            } else {
+                MessageBox(hwnd, _T("GPU information not found (no GPUs enumerated)."), _T("Error"), MB_OK | MB_ICONERROR);
+                return false;
+            }
+        }
     }
     DebugLog("RefreshDisplayList: Read GPU_INFO: " + gpuInfo);
 
@@ -755,7 +782,7 @@ void TaskTrayApp::RefreshDisplayList() {
     }
     else {
         DebugLog("RefreshDisplayList: Invalid GPU_INFO format.");
-        return;
+        return false;
     }
 
     // Get displays sorted by Windows display number (DISPLAY1, DISPLAY2, ...)
@@ -823,6 +850,7 @@ void TaskTrayApp::RefreshDisplayList() {
     }
 
     DebugLog("RefreshDisplayList: Display list refresh complete.");
+    return true;
 }
 
 int TaskTrayApp::Run() {
