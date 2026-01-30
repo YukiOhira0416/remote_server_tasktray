@@ -37,6 +37,7 @@
 
 namespace {
 constexpr UINT ID_EXIT = 1;
+constexpr UINT ID_DISPLAY_STATUS = 50;
 constexpr UINT ID_DISPLAY_BASE = 100;
 constexpr UINT ID_CAPTURE_MODE_NORMAL = 200;
 constexpr UINT ID_CAPTURE_MODE_GAME = 201;
@@ -256,7 +257,7 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
 
     if (numDisplaysStr.empty()) {
         DebugLog("UpdateDisplayMenu: Shared Memory not ready (DISP_INFO_NUM empty).");
-        AppendMenu(hMenu, MF_STRING | MF_GRAYED, 0, _T("Service not ready"));
+        AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS, _T("Service not ready (DISP_INFO_NUM empty)"));
         return;
     }
 
@@ -271,7 +272,7 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
     }
 
     if (numDisplays == 0) {
-        AppendMenu(hMenu, MF_STRING | MF_GRAYED, 0, _T("No displays found"));
+        AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS, _T("No displays found (DISP_INFO_NUM=0)"));
         return;
     }
 
