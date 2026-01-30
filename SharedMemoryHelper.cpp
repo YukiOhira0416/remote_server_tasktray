@@ -29,51 +29,15 @@ std::wstring ConvertStringToWString(const std::string& str) {
     return wstrTo;
 }
 
-// 現在のユーザーのSIDを取得する関数
-std::string GetCurrentUserSID() {
-    HANDLE token;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
-        DebugLog("GetCurrentUserSID: OpenProcessToken failed with error: " + std::to_string(GetLastError()));
-        return "";
-    }
-
-    DWORD size = 0;
-    GetTokenInformation(token, TokenUser, NULL, 0, &size);
-    std::vector<BYTE> buffer(size);
-    if (!GetTokenInformation(token, TokenUser, buffer.data(), size, &size)) {
-        DebugLog("GetCurrentUserSID: GetTokenInformation failed with error: " + std::to_string(GetLastError()));
-        CloseHandle(token);
-        return "";
-    }
-
-    CloseHandle(token);
-
-    PSID sid = reinterpret_cast<TOKEN_USER*>(buffer.data())->User.Sid;
-    LPSTR sidString;
-    if (!ConvertSidToStringSidA(sid, &sidString)) {
-        DebugLog("GetCurrentUserSID: ConvertSidToStringSidA failed with error: " + std::to_string(GetLastError()));
-        return "";
-    }
-
-    std::string sidStr(sidString);
-    LocalFree(sidString);
-    return sidStr;
-}
 
 // CreateSecurityAttributes 関数を SharedMemoryHelper クラスのメンバー関数として実装
 SECURITY_ATTRIBUTES SharedMemoryHelper::CreateSecurityAttributes() {
-    std::string userSID = GetCurrentUserSID();
-    if (userSID.empty()) {
-        DebugLog("CreateSecurityAttributes: Failed to get current user SID.");
-        return {};
-    }
-
     SECURITY_ATTRIBUTES sa;
     sa.nLength = sizeof(SECURITY_ATTRIBUTES);
     sa.bInheritHandle = FALSE;
     sa.lpSecurityDescriptor = nullptr;
 
-    std::wstring sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + ConvertStringToWString(userSID) + L")";
+    std::wstring sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;WD)";
     if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
         sddl.c_str(),
         SDDL_REVISION_1,
@@ -93,8 +57,8 @@ SECURITY_ATTRIBUTES SharedMemoryHelper::CreateSecurityAttributes() {
 bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::string& data) {
     std::lock_guard<std::mutex> lock(sharedMemoryMutex);
 
-    std::wstring fullName = L"Local\\" + ConvertStringToWString(name);
-    std::wstring mutexName = L"Local\\Mutex_" + ConvertStringToWString(name);
+    std::wstring fullName = L"Global\\" + ConvertStringToWString(name);
+    std::wstring mutexName = L"Global\\Mutex_" + ConvertStringToWString(name);
     HANDLE hMutex = CreateMutexW(NULL, FALSE, mutexName.c_str());
     if (hMutex == NULL) {
         DebugLog("WriteSharedMemory: Failed to create mutex with error: " + std::to_string(GetLastError()));
@@ -168,7 +132,7 @@ bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::s
 std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
     std::lock_guard<std::mutex> lock(sharedMemoryMutex);
 
-    std::wstring mutexName = L"Local\\Mutex_" + ConvertStringToWString(name);
+    std::wstring mutexName = L"Global\\Mutex_" + ConvertStringToWString(name);
     HANDLE hMutex = CreateMutexW(NULL, FALSE, mutexName.c_str());
     if (hMutex == NULL) {
         DebugLog("ReadSharedMemory: Failed to create mutex with error: " + std::to_string(GetLastError()));
@@ -178,7 +142,7 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
     WaitForSingleObject(hMutex, INFINITE);
     DebugLog("ReadSharedMemory: Mutex acquired.");
 
-    std::wstring eventName = L"Local\\" + ConvertStringToWString(name) + L"_Event";
+    std::wstring eventName = L"Global\\" + ConvertStringToWString(name) + L"_Event";
     HANDLE hEventFile = OpenEventW(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, eventName.c_str());
     if (hEventFile == NULL) {
         DWORD error = GetLastError();
@@ -200,7 +164,7 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
     DWORD dwWaitResult = WaitForSingleObject(hEventFile, 5000);
     std::string data;
     if (dwWaitResult == WAIT_OBJECT_0) {
-        std::wstring sharedMemoryName = L"Local\\" + ConvertStringToWString(name);
+        std::wstring sharedMemoryName = L"Global\\" + ConvertStringToWString(name);
         HANDLE hMapFile = OpenFileMappingW(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, sharedMemoryName.c_str());
         if (hMapFile == NULL) {
             DebugLog("ReadSharedMemory: OpenFileMappingW failed with error: " + std::to_string(GetLastError()));
@@ -252,7 +216,7 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
 }
 
 void SharedMemoryHelper::SignalEvent(const std::string& name) {
-    std::wstring wEventName = L"Local\\" + ConvertStringToWString(name) + L"_Event";
+    std::wstring wEventName = L"Global\\" + ConvertStringToWString(name) + L"_Event";
 
     SECURITY_ATTRIBUTES sa = CreateSecurityAttributes();
     if (sa.lpSecurityDescriptor == nullptr) {
