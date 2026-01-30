@@ -25,13 +25,15 @@ bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::s
     const std::wstring eventName = L"Global\\" + wKey + L"_Event";
 
     // Try to open mutex. If it doesn't exist, we assume the service is not ready.
-    HANDLE hMutex = OpenMutexW(SYNCHRONIZE, FALSE, mutexName.c_str());
+    HANDLE hMutex = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, mutexName.c_str());
     if (!hMutex) {
-        DebugLog("WriteSharedMemory: Mutex not found (" + name + "). Service likely not ready.");
+        DebugLog("WriteSharedMemory: OpenMutex failed (" + name + ") err=" + std::to_string(GetLastError()));
         return false;
     }
 
     DWORD waitResult = WaitForSingleObject(hMutex, 2000);
+    bool locked = (waitResult == WAIT_OBJECT_0 || waitResult == WAIT_ABANDONED);
+
     if (waitResult == WAIT_ABANDONED) {
          DebugLog("WriteSharedMemory: Mutex abandoned (" + name + "). Proceeding.");
     } else if (waitResult == WAIT_TIMEOUT) {
@@ -43,7 +45,7 @@ bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::s
     HANDLE hMap = OpenFileMappingW(FILE_MAP_WRITE, FALSE, mapName.c_str());
     if (!hMap) {
         DebugLog("WriteSharedMemory: Shared memory not found: " + name);
-        ReleaseMutex(hMutex);
+        if (locked) ReleaseMutex(hMutex);
         CloseHandle(hMutex);
         return false;
     }
@@ -52,7 +54,7 @@ bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::s
     if (!p) {
         DebugLog("WriteSharedMemory: MapViewOfFile failed.");
         CloseHandle(hMap);
-        ReleaseMutex(hMutex);
+        if (locked) ReleaseMutex(hMutex);
         CloseHandle(hMutex);
         return false;
     }
@@ -78,7 +80,7 @@ bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::s
         DebugLog("WriteSharedMemory: Event not found (" + name + ").");
     }
 
-    ReleaseMutex(hMutex);
+    if (locked) ReleaseMutex(hMutex);
     CloseHandle(hMutex);
     return true;
 }
@@ -88,10 +90,14 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
     const std::wstring mapName   = L"Global\\" + wKey;
     const std::wstring mutexName = L"Global\\" + wKey + L"_Mutex";
 
-    HANDLE hMutex = OpenMutexW(SYNCHRONIZE, FALSE, mutexName.c_str());
+    HANDLE hMutex = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, mutexName.c_str());
+    bool locked = false;
     if (hMutex) {
-        WaitForSingleObject(hMutex, 2000);
+        DWORD wr = WaitForSingleObject(hMutex, 2000);
+        locked = (wr == WAIT_OBJECT_0 || wr == WAIT_ABANDONED);
     } else {
+        // AccessDenied(5) is possible, so don't misdiagnose.
+        DebugLog("ReadSharedMemory: OpenMutex failed (" + name + ") err=" + std::to_string(GetLastError()));
         // If mutex is missing, we might be reading before service started.
         // We'll try to read anyway if the mapping exists (optimistic read),
         // but likely the mapping is also missing.
@@ -101,14 +107,14 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
     if (!hMap) {
         // Quietly fail for DISP_INFO_NUM checks to avoid log spam on every tick if service is down.
         // Or log once. For now, we return empty string.
-        if (hMutex) { ReleaseMutex(hMutex); CloseHandle(hMutex); }
+        if (hMutex) { if (locked) ReleaseMutex(hMutex); CloseHandle(hMutex); }
         return "";
     }
 
     void* p = MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, SHARED_MEMORY_SIZE);
     if (!p) {
         CloseHandle(hMap);
-        if (hMutex) { ReleaseMutex(hMutex); CloseHandle(hMutex); }
+        if (hMutex) { if (locked) ReleaseMutex(hMutex); CloseHandle(hMutex); }
         return "";
     }
 
@@ -116,7 +122,7 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
     UnmapViewOfFile(p);
     CloseHandle(hMap);
 
-    if (hMutex) { ReleaseMutex(hMutex); CloseHandle(hMutex); }
+    if (hMutex) { if (locked) ReleaseMutex(hMutex); CloseHandle(hMutex); }
     return s;
 }
 
