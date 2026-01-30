@@ -273,6 +273,7 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
 
     if (numDisplays == 0) {
         AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS, _T("No displays found (DISP_INFO_NUM=0)"));
+        AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS + 1, _T("If server is running, check shared-memory permission (service security descriptor / integrity level)."));
         return;
     }
 
