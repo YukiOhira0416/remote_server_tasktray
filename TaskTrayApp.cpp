@@ -2,6 +2,8 @@
 #include "StringConversion.h"
 #include "Utility.h"
 #include "SharedMemoryHelper.h"
+#include "RemoteDesktopStateV1.h"
+#include <cstring>
 #include <tchar.h>
 #include <iostream>
 #include <algorithm>
@@ -250,6 +252,29 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
     // Clear any existing menu items.
     while (GetMenuItemCount(hMenu) > 0) {
         RemoveMenu(hMenu, 0, MF_BYPOSITION);
+    }
+
+    // --- Desktop State display (Default/Winlogon) ---
+    {
+        HANDLE hMap = OpenFileMappingW(FILE_MAP_READ, FALSE, L"Global\\RemoteDesktopStateV1");
+        std::wstring desk = L"(unknown)";
+        if (hMap) {
+            auto p = (RemoteDesktopStateV1*)MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, sizeof(RemoteDesktopStateV1));
+            if (p) {
+                if (p->magic == 0x31534452 && p->version == 1) {
+                    // Safe string copy with termination guarantee
+                    wchar_t buffer[257];
+                    std::memcpy(buffer, p->desktopName, 256 * sizeof(wchar_t));
+                    buffer[256] = 0;
+                    desk = buffer;
+                }
+                UnmapViewOfFile(p);
+            }
+            CloseHandle(hMap);
+        }
+        std::wstring line = L"Desktop: " + desk;
+        AppendMenuW(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS, line.c_str());
+        AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     }
 
     SharedMemoryHelper sharedMemoryHelper; // No args
