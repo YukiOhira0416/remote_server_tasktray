@@ -150,6 +150,7 @@ set(HEADERS
     targetver.h
     Resource.h
     OverlayManager.h
+    RemoteDesktopStateV1.h
 )
 
 # リソースファイル
