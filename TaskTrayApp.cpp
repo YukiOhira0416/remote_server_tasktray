@@ -220,7 +220,7 @@ void TaskTrayApp::ShowContextMenu() {
     }
 
     UpdateDisplayMenu(hSubMenu); // Build the menu from shared memory
-    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hSubMenu, _T("Display Selection"));
+    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hSubMenu, _T("Select Display"));
 
     HMENU hCaptureMenu = CreatePopupMenu();
     if (hCaptureMenu == NULL) {
@@ -286,17 +286,8 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
         std::string keyID = "DISP_INFO_" + std::to_string(idx);
         std::string currentDisplaySerial = sharedMemoryHelper.ReadSharedMemory(keyID);
 
-        // Read Friendly Name (e.g., "LG UltraFine")
-        std::string keyName = "DISP_NAME_" + std::to_string(idx);
-        std::string displayNameStr = sharedMemoryHelper.ReadSharedMemory(keyName);
-
-        // Fallback name if missing
-        std::wstring displayNameW;
-        if (displayNameStr.empty()) {
-             displayNameW = L"Display " + std::to_wstring(idx + 1);
-        } else {
-             displayNameW = utf8_to_utf16(displayNameStr);
-        }
+        // Always show "Display N" to match the hover overlay number.
+        std::wstring displayNameW = L"Display " + std::to_wstring(idx + 1);
 
         UINT flags = MF_STRING;
         // Check if this is the selected one
