@@ -479,7 +479,7 @@ void TaskTrayApp::PulseRebootFlag() {
         SharedMemoryHelper helper; // No args
         DebugLog("PulseRebootFlag: Setting REBOOT to 1.");
         helper.WriteSharedMemory("REBOOT", "1");
-        Sleep(1000);
+        Sleep(100); // shorter delay is enough because server wakes by REBOOT_Event
         DebugLog("PulseRebootFlag: Resetting REBOOT to 0.");
         helper.WriteSharedMemory("REBOOT", "0");
     }).detach();
