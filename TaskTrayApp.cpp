@@ -349,7 +349,7 @@ void TaskTrayApp::SetCaptureMode(int mode) {
     std::string modeValue = std::to_string(mode);
     DebugLog("SetCaptureMode: Setting capture mode to " + modeValue);
     if (sharedMemoryHelper.WriteSharedMemory("Capture_Mode", modeValue)) {
-        PulseRebootFlag();
+        // REBOOT とレジストリ反映はサービス側に集約する
     } else {
         DebugLog("SetCaptureMode: Failed to write to shared memory (Service not ready?).");
     }
@@ -443,17 +443,6 @@ void TaskTrayApp::ShowControlPanel() {
         DebugLog("ShowControlPanel: Entering Qt event loop for control panel.");
         app.exec();
         DebugLog("ShowControlPanel: Qt event loop exited.");
-    }).detach();
-}
-
-void TaskTrayApp::PulseRebootFlag() {
-    std::thread([this]() {
-        SharedMemoryHelper helper; // No args
-        DebugLog("PulseRebootFlag: Setting REBOOT to 1.");
-        helper.WriteSharedMemory("REBOOT", "1");
-        Sleep(1000);
-        DebugLog("PulseRebootFlag: Resetting REBOOT to 0.");
-        helper.WriteSharedMemory("REBOOT", "0");
     }).detach();
 }
 

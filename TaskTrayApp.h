@@ -27,7 +27,6 @@ public:
 
 private:
     void UpdateTrayTooltip(const std::wstring& text);
-    void PulseRebootFlag();
 
     HINSTANCE hInstance;
     HWND hwnd;
