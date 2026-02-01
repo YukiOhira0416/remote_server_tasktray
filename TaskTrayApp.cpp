@@ -477,11 +477,20 @@ void TaskTrayApp::ShowControlPanel() {
 void TaskTrayApp::PulseRebootFlag() {
     std::thread([this]() {
         SharedMemoryHelper helper; // No args
-        DebugLog("PulseRebootFlag: Setting REBOOT to 1.");
-        helper.WriteSharedMemory("REBOOT", "1");
-        Sleep(100); // shorter delay is enough because server wakes by REBOOT_Event
-        DebugLog("PulseRebootFlag: Resetting REBOOT to 0.");
-        helper.WriteSharedMemory("REBOOT", "0");
+        // REBOOT is a monotonically increasing sequence number.
+        // This avoids race conditions with short pulses (1->0).
+        uint64_t seq = 0;
+        try {
+            std::string cur = helper.ReadSharedMemory("REBOOT");
+            if (!cur.empty()) {
+                seq = std::stoull(cur);
+            }
+        } catch (...) {
+            seq = 0;
+        }
+        seq++;
+        DebugLog("PulseRebootFlag: Incrementing REBOOT to " + std::to_string(seq));
+        helper.WriteSharedMemory("REBOOT", std::to_string(seq));
     }).detach();
 }
 
