@@ -277,6 +277,18 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
         AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     }
 
+    // --- Shutdown Pending display ---
+    {
+        SharedMemoryHelper helper;
+        std::string sp = helper.ReadSharedMemory("SHUTDOWN_PENDING");
+        if (!sp.empty()) {
+            DebugLog("SHUTDOWN_PENDING=" + sp);
+            std::wstring line = L"Shutdown Pending: " + utf8_to_utf16(sp);
+            AppendMenuW(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS, line.c_str());
+            AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+        }
+    }
+
     SharedMemoryHelper sharedMemoryHelper; // No args
     std::string numDisplaysStr = sharedMemoryHelper.ReadSharedMemory("DISP_INFO_NUM");
 
