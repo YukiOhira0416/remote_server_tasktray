@@ -18,8 +18,10 @@ public:
     void ShowContextMenu();
     void UpdateDisplayMenu(HMENU hMenu);
     void UpdateCaptureModeMenu(HMENU hMenu);
+    void UpdateConversionModeMenu(HMENU hMenu);
     void SelectDisplay(int displayIndex);
     void SetCaptureMode(int mode);
+    void SetConversionMode(int mode);
     void ShowControlPanel();
     bool RefreshDisplayList();
     bool Cleanup();
