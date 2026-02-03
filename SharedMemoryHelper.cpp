@@ -4,8 +4,11 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <atomic>
 
 const DWORD SHARED_MEMORY_SIZE = 256;
+
+static std::atomic<uint64_t> g_lastOpenAttemptMs(0);
 
 // Helper to convert std::string to std::wstring
 std::wstring ConvertStringToWString(const std::string& str) {
@@ -16,6 +19,25 @@ std::wstring ConvertStringToWString(const std::string& str) {
     return wstrTo;
 }
 
+// Helper to open mutex with rate limiting and error suppression
+static HANDLE OpenMutexSafe(const std::wstring& mutexName, const std::string& debugName) {
+    const uint64_t now = GetTickCount64();
+    const uint64_t last = g_lastOpenAttemptMs.load(std::memory_order_relaxed);
+    if (last != 0 && (now - last) < 500) {
+        return NULL;
+    }
+    g_lastOpenAttemptMs.store(now, std::memory_order_relaxed);
+
+    HANDLE hMutex = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, mutexName.c_str());
+    if (!hMutex) {
+        DWORD err = GetLastError();
+        if (err != ERROR_FILE_NOT_FOUND) {
+            DebugLog("OpenMutex failed (" + debugName + ") err=" + std::to_string(err));
+        }
+    }
+    return hMutex;
+}
+
 SharedMemoryHelper::SharedMemoryHelper() {}
 
 bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::string& data) {
@@ -24,10 +46,10 @@ bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::s
     const std::wstring mutexName = L"Global\\" + wKey + L"_Mutex";
     const std::wstring eventName = L"Global\\" + wKey + L"_Event";
 
-    // Try to open mutex. If it doesn't exist, we assume the service is not ready.
-    HANDLE hMutex = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, mutexName.c_str());
+    // Try to open mutex using helper
+    HANDLE hMutex = OpenMutexSafe(mutexName, name);
     if (!hMutex) {
-        DebugLog("WriteSharedMemory: OpenMutex failed (" + name + ") err=" + std::to_string(GetLastError()));
+        // Logging is handled in OpenMutexSafe (or suppressed)
         return false;
     }
 
@@ -90,14 +112,13 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
     const std::wstring mapName   = L"Global\\" + wKey;
     const std::wstring mutexName = L"Global\\" + wKey + L"_Mutex";
 
-    HANDLE hMutex = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, mutexName.c_str());
+    HANDLE hMutex = OpenMutexSafe(mutexName, name);
     bool locked = false;
     if (hMutex) {
         DWORD wr = WaitForSingleObject(hMutex, 2000);
         locked = (wr == WAIT_OBJECT_0 || wr == WAIT_ABANDONED);
     } else {
-        // AccessDenied(5) is possible, so don't misdiagnose.
-        DebugLog("ReadSharedMemory: OpenMutex failed (" + name + ") err=" + std::to_string(GetLastError()));
+        // OpenMutexSafe suppressed err=2. Other errors logged.
         // If mutex is missing, we might be reading before service started.
         // We'll try to read anyway if the mapping exists (optimistic read),
         // but likely the mapping is also missing.
