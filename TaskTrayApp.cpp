@@ -253,6 +253,15 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
     }
 
     SharedMemoryHelper sharedMemoryHelper; // No args
+
+    // セキュア中は手動切替禁止（あなたの仕様）
+    std::string secureStr = sharedMemoryHelper.ReadSharedMemory("SECURE_ACTIVE");
+    const bool secureActive = (!secureStr.empty() && secureStr != "0");
+    if (secureActive) {
+        AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS, _T("Secure desktop active (manual switching disabled)"));
+        return;
+    }
+
     std::string numDisplaysStr = sharedMemoryHelper.ReadSharedMemory("DISP_INFO_NUM");
 
     if (numDisplaysStr.empty()) {
@@ -311,6 +320,14 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
     DebugLog("SelectDisplay: User selected display at index " + std::to_string(displayIndex));
 
     SharedMemoryHelper sharedMemoryHelper; // No args
+
+    // 念のためここでもブロック（UI更新タイミングずれ対策）
+    std::string secureStr = sharedMemoryHelper.ReadSharedMemory("SECURE_ACTIVE");
+    const bool secureActive = (!secureStr.empty() && secureStr != "0");
+    if (secureActive) {
+        DebugLog("SelectDisplay: blocked because SECURE_ACTIVE=1");
+        return;
+    }
 
     // Read the serial number for the selected index from shared memory (0-based)
     std::string key = "DISP_INFO_" + std::to_string(displayIndex);
