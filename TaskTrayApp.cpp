@@ -41,6 +41,8 @@ constexpr UINT ID_DISPLAY_STATUS = 50;
 constexpr UINT ID_DISPLAY_BASE = 100;
 constexpr UINT ID_CAPTURE_MODE_NORMAL = 200;
 constexpr UINT ID_CAPTURE_MODE_GAME = 201;
+constexpr UINT ID_CONVERSION_CUDA = 210;
+constexpr UINT ID_CONVERSION_DIRECTX = 211;
 constexpr UINT ID_CONTROL_PANEL = 300;
 
 std::atomic<bool> g_controlPanelRunning{ false };
@@ -232,6 +234,14 @@ void TaskTrayApp::ShowContextMenu() {
 
     UpdateCaptureModeMenu(hCaptureMenu);
     AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hCaptureMenu, _T("CaptureMode"));
+
+    HMENU hConvMenu = CreatePopupMenu();
+    if (hConvMenu == NULL) {
+        DebugLog("ShowContextMenu: Error - Failed to create conversion submenu.");
+    } else {
+        UpdateConversionModeMenu(hConvMenu);
+        AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hConvMenu, _T("ConversionMode"));
+    }
 
     AppendMenu(hMenu, MF_STRING, ID_CONTROL_PANEL, _T("ControlPanel"));
 
@@ -579,6 +589,12 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
                 DebugLog("WindowProc: Game Mode selected.");
                 app->SetCaptureMode(2);
             }
+            else if (LOWORD(wParam) == ID_CONVERSION_CUDA) {
+                app->SetConversionMode(1);
+            }
+            else if (LOWORD(wParam) == ID_CONVERSION_DIRECTX) {
+                app->SetConversionMode(2);
+            }
             else if (LOWORD(wParam) == ID_CONTROL_PANEL) {
                 DebugLog("WindowProc: Control Panel selected.");
                 app->ShowControlPanel();
@@ -697,4 +713,34 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
 
     AppendMenu(hMenu, normalFlags, ID_CAPTURE_MODE_NORMAL, _T("Normal Mode"));
     AppendMenu(hMenu, gameFlags, ID_CAPTURE_MODE_GAME, _T("Game Mode"));
+}
+
+void TaskTrayApp::SetConversionMode(int mode) {
+    SharedMemoryHelper sharedMemoryHelper;
+    std::string modeValue = std::to_string(mode); // 1=CUDA, 2=DIRECTX
+    DebugLog("SetConversionMode: Setting conversion mode to " + modeValue);
+    if (!sharedMemoryHelper.WriteSharedMemory("Conversion_Mode", modeValue)) {
+        DebugLog("SetConversionMode: Failed to write to shared memory (Service not ready?).");
+    }
+}
+
+void TaskTrayApp::UpdateConversionModeMenu(HMENU hMenu) {
+    while (GetMenuItemCount(hMenu) > 0) {
+        RemoveMenu(hMenu, 0, MF_BYPOSITION);
+    }
+
+    SharedMemoryHelper sharedMemoryHelper;
+    std::string convStr = sharedMemoryHelper.ReadSharedMemory("Conversion_Mode");
+    int conv = 1;
+    try {
+        if (!convStr.empty()) conv = std::stoi(convStr);
+    } catch (...) {
+        conv = 1;
+    }
+
+    UINT cudaFlags = MF_STRING | ((conv == 1) ? MF_CHECKED : 0);
+    UINT dxFlags   = MF_STRING | ((conv == 2) ? MF_CHECKED : 0);
+
+    AppendMenu(hMenu, cudaFlags, ID_CONVERSION_CUDA, _T("CUDA"));
+    AppendMenu(hMenu, dxFlags,   ID_CONVERSION_DIRECTX, _T("DIRECTX"));
 }
