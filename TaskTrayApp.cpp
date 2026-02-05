@@ -347,6 +347,13 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
 
     SharedMemoryHelper sharedMemoryHelper; // No args
 
+    // Secure Desktop 中は Agent が DISP_INFO を自動制御するため、ユーザー操作は無効化する
+    std::string secureFlag = sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE");
+    if (secureFlag == "1") {
+        DebugLog("SelectDisplay: SECURE_DESKTOP_ACTIVE=1. Ignoring user display selection.");
+        return;
+    }
+
     // Read the serial number for the selected index from shared memory (0-based)
     std::string key = "DISP_INFO_" + std::to_string(displayIndex);
     std::string selectedSerial = sharedMemoryHelper.ReadSharedMemory(key);
