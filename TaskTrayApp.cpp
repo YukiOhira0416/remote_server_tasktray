@@ -282,7 +282,7 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
     DebugLog("UpdateDisplayMenu: Currently selected display serial: " + selectedDisplaySerial);
 
     // Check Secure Mode
-    std::string secureVal = sharedMemoryHelper.ReadSharedMemory("SECURE_ACTIVE");
+    std::string secureVal = sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE");
     bool isSecure = (secureVal == "1");
 
     for (int idx = 0; idx < numDisplays; ++idx) {
@@ -301,7 +301,7 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
         }
 
         if (isSecure) {
-            flags |= MF_GRAYED;
+            flags |= (MF_GRAYED | MF_DISABLED);
         }
 
         UINT commandId = ID_DISPLAY_BASE + idx; // Menu command IDs are 0-indexed.
