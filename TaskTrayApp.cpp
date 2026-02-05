@@ -285,6 +285,23 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
     std::string secureVal = sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE");
     bool isSecure = (secureVal == "1");
 
+    // Check Reboot Status
+    std::string rebootVal = sharedMemoryHelper.ReadSharedMemory("REBOOT");
+    bool isRebooting = (rebootVal == "1");
+
+    // Check Server Ready Event
+    bool isServerReady = false;
+    {
+        HANDLE h = OpenEventW(SYNCHRONIZE, FALSE, L"Global\\REMOTE_SERVER_READY_EVENT_V1");
+        if (h) {
+            isServerReady = (WaitForSingleObject(h, 0) == WAIT_OBJECT_0);
+            CloseHandle(h);
+        }
+    }
+
+    // Determine if display selection should be disabled
+    bool shouldDisable = isSecure || isRebooting || !isServerReady;
+
     for (int idx = 0; idx < numDisplays; ++idx) {
         // Read DeviceID (e.g., MONITOR\GSM5B09\...)
         std::string keyID = "DISP_INFO_" + std::to_string(idx);
@@ -300,7 +317,7 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
             flags |= MF_CHECKED;
         }
 
-        if (isSecure) {
+        if (shouldDisable) {
             flags |= (MF_GRAYED | MF_DISABLED);
         }
 
@@ -313,6 +330,12 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
 
     if (isSecure) {
         InsertMenu(hMenu, 0, MF_BYPOSITION | MF_STRING | MF_GRAYED, 0, L"(Secure Desktop Active)");
+    }
+    if (isRebooting) {
+        InsertMenu(hMenu, 0, MF_BYPOSITION | MF_STRING | MF_GRAYED, 0, L"(Reboot Pending)");
+    }
+    if (!isServerReady) {
+        InsertMenu(hMenu, 0, MF_BYPOSITION | MF_STRING | MF_GRAYED, 0, L"(Server Not Ready)");
     }
 
     DebugLog("UpdateDisplayMenu: Finished updating display menu.");
