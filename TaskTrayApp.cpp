@@ -281,6 +281,10 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
     std::string selectedDisplaySerial = sharedMemoryHelper.ReadSharedMemory("DISP_INFO");
     DebugLog("UpdateDisplayMenu: Currently selected display serial: " + selectedDisplaySerial);
 
+    // Check Secure Mode
+    std::string secureVal = sharedMemoryHelper.ReadSharedMemory("SECURE_ACTIVE");
+    bool isSecure = (secureVal == "1");
+
     for (int idx = 0; idx < numDisplays; ++idx) {
         // Read DeviceID (e.g., MONITOR\GSM5B09\...)
         std::string keyID = "DISP_INFO_" + std::to_string(idx);
@@ -296,11 +300,19 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
             flags |= MF_CHECKED;
         }
 
+        if (isSecure) {
+            flags |= MF_GRAYED;
+        }
+
         UINT commandId = ID_DISPLAY_BASE + idx; // Menu command IDs are 0-indexed.
 
         if (!AppendMenu(hMenu, flags, commandId, displayNameW.c_str())) {
             DebugLog("UpdateDisplayMenu: Failed to add menu item for Display " + std::to_string(idx + 1));
         }
+    }
+
+    if (isSecure) {
+        InsertMenu(hMenu, 0, MF_BYPOSITION | MF_STRING | MF_GRAYED, 0, L"(Secure Desktop Active)");
     }
 
     DebugLog("UpdateDisplayMenu: Finished updating display menu.");
