@@ -64,6 +64,24 @@ static std::wstring ReadCaptureTypeActiveFromRegistry()
     return out;
 }
 
+static bool QueryServerReadyEventNonBlocking()
+{
+    HANDLE h = OpenEventW(SYNCHRONIZE, FALSE, L"Global\\REMOTE_SERVER_READY_EVENT_V1");
+    if (!h) {
+        DWORD err = GetLastError();
+        // ACCESS_DENIED の場合、READY判定はできないが「UIを永久ロック」すると戻せなくなる。
+        // 最小復旧策として ready 扱いにして操作を許可する（REBOOT/SECURE側で別途抑止される）。
+        if (err == ERROR_ACCESS_DENIED) {
+            DebugLog("QueryServerReadyEvent: OpenEvent ACCESS_DENIED -> treat as ready to avoid UI lockout");
+            return true;
+        }
+        return false;
+    }
+    bool ready = (WaitForSingleObject(h, 0) == WAIT_OBJECT_0);
+    CloseHandle(h);
+    return ready;
+}
+
 class ControlPanelCloseFilter : public QObject {
 public:
     using QObject::QObject;
@@ -307,14 +325,7 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
     bool isRebooting = (rebootVal == "1");
 
     // Check Server Ready Event
-    bool isServerReady = false;
-    {
-        HANDLE h = OpenEventW(SYNCHRONIZE, FALSE, L"Global\\REMOTE_SERVER_READY_EVENT_V1");
-        if (h) {
-            isServerReady = (WaitForSingleObject(h, 0) == WAIT_OBJECT_0);
-            CloseHandle(h);
-        }
-    }
+    bool isServerReady = QueryServerReadyEventNonBlocking();
 
     // Determine if display selection should be disabled
     bool shouldDisable = isSecure || isRebooting || !isServerReady;
@@ -729,14 +740,7 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
     // Reboot / ServerReady 判定
     std::string rebootVal = sharedMemoryHelper.ReadSharedMemory("REBOOT");
     bool isRebooting = (rebootVal == "1");
-    bool isServerReady = false;
-    {
-        HANDLE h = OpenEventW(SYNCHRONIZE, FALSE, L"Global\\REMOTE_SERVER_READY_EVENT_V1");
-        if (h) {
-            isServerReady = (WaitForSingleObject(h, 0) == WAIT_OBJECT_0);
-            CloseHandle(h);
-        }
-    }
+    bool isServerReady = QueryServerReadyEventNonBlocking();
     bool disableCaptureMode = isRebooting || !isServerReady;
 
     std::string captureModeStr = sharedMemoryHelper.ReadSharedMemory("Capture_Mode");
