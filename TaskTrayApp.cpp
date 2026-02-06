@@ -79,6 +79,14 @@ static std::wstring GetActiveCaptureTypeLabel()
     return L"WGC"; // safest default
 }
 
+static bool IsRemoteServiceAliveNonBlocking()
+{
+    HANDLE h = OpenFileMappingW(FILE_MAP_READ, FALSE, L"Global\\RemoteServiceAliveV1");
+    if (!h) return false;
+    CloseHandle(h);
+    return true;
+}
+
 static bool QueryServerReadyEventNonBlocking()
 {
     HANDLE h = OpenEventW(SYNCHRONIZE, FALSE, L"Global\\REMOTE_SERVER_READY_EVENT_V1");
@@ -322,8 +330,24 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
     }
 
     if (numDisplays == 0) {
+        const bool serviceAlive = IsRemoteServiceAliveNonBlocking();
+        const bool serverReady = QueryServerReadyEventNonBlocking();
+
+        if (!serviceAlive) {
+            AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS, _T("Service not running (RemoteServiceAliveV1 missing)"));
+            AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS + 1, _T("Start RemoteService first."));
+            return;
+        }
+
+        if (!serverReady) {
+            AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS, _T("Server starting... (REMOTE_SERVER_READY_EVENT_V1 not signaled)"));
+            AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS + 1, _T("Wait a few seconds, then open this menu again."));
+            return;
+        }
+
         AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS, _T("No displays found (DISP_INFO_NUM=0)"));
-        AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS + 1, _T("If server is running, check shared-memory permission (service security descriptor / integrity level)."));
+        AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS + 1, _T("Server should republish displays automatically. If it doesn't, restart server/service."));
+        AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS + 2, _T("If you still suspect ACL/Integrity issues, check the service SDDL (Medium IL + IU write)."));
         return;
     }
 
