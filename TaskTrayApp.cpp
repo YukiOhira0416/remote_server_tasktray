@@ -725,6 +725,20 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
     }
 
     SharedMemoryHelper sharedMemoryHelper; // No args
+
+    // Reboot / ServerReady 判定
+    std::string rebootVal = sharedMemoryHelper.ReadSharedMemory("REBOOT");
+    bool isRebooting = (rebootVal == "1");
+    bool isServerReady = false;
+    {
+        HANDLE h = OpenEventW(SYNCHRONIZE, FALSE, L"Global\\REMOTE_SERVER_READY_EVENT_V1");
+        if (h) {
+            isServerReady = (WaitForSingleObject(h, 0) == WAIT_OBJECT_0);
+            CloseHandle(h);
+        }
+    }
+    bool disableCaptureMode = isRebooting || !isServerReady;
+
     std::string captureModeStr = sharedMemoryHelper.ReadSharedMemory("Capture_Mode");
     int captureMode = 1;
 
@@ -745,6 +759,13 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
     }
     else {
         normalFlags |= MF_CHECKED;
+    }
+
+    if (disableCaptureMode) {
+        normalFlags |= (MF_GRAYED | MF_DISABLED);
+        gameFlags   |= (MF_GRAYED | MF_DISABLED);
+        AppendMenuW(hMenu, MF_STRING | MF_GRAYED | MF_DISABLED, 0, L"Rebooting / Server not ready");
+        AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     }
 
     AppendMenu(hMenu, normalFlags, ID_CAPTURE_MODE_NORMAL, _T("Normal Mode"));
