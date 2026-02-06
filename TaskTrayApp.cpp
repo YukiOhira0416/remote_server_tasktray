@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <functional>
 #include <windows.h>
+#include <winreg.h>
 #include <vector>
 #include <string>
 #include <CommCtrl.h>
@@ -46,6 +47,22 @@ constexpr UINT ID_CONTROL_PANEL = 300;
 std::atomic<bool> g_controlPanelRunning{ false };
 std::atomic<QMainWindow*> g_controlPanelWindow{ nullptr };
 std::atomic<std::uint64_t> g_controlPanelToken{ 0 };
+
+static std::wstring ReadCaptureTypeActiveFromRegistry()
+{
+    HKEY hKey = nullptr;
+    std::wstring out;
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\MyApp\\CaptureType", 0, KEY_READ | KEY_WOW64_64KEY, &hKey) == ERROR_SUCCESS) {
+        wchar_t buf[256] = {};
+        DWORD cb = sizeof(buf);
+        DWORD type = 0;
+        if (RegQueryValueExW(hKey, L"CaptureTypeActive", nullptr, &type, reinterpret_cast<LPBYTE>(buf), &cb) == ERROR_SUCCESS) {
+            if (type == REG_SZ) out = buf;
+        }
+        RegCloseKey(hKey);
+    }
+    return out;
+}
 
 class ControlPanelCloseFilter : public QObject {
 public:
@@ -695,6 +712,16 @@ void TaskTrayApp::UpdateTrayTooltip(const std::wstring& text) {
 void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
     while (GetMenuItemCount(hMenu) > 0) {
         RemoveMenu(hMenu, 0, MF_BYPOSITION);
+    }
+
+    // (Optional) show active backend status
+    {
+        std::wstring active = ReadCaptureTypeActiveFromRegistry();
+        if (!active.empty()) {
+            std::wstring label = L"Active: " + active;
+            AppendMenuW(hMenu, MF_STRING | MF_GRAYED | MF_DISABLED, 0, label.c_str());
+            AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+        }
     }
 
     SharedMemoryHelper sharedMemoryHelper; // No args
