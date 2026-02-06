@@ -64,6 +64,21 @@ static std::wstring ReadCaptureTypeFromRegistry()
     return out;
 }
 
+static std::wstring GetActiveCaptureTypeLabel()
+{
+    // 共有メモリ(=ユーザー選択)を優先
+    SharedMemoryHelper smh;
+    std::string modeStr = smh.ReadSharedMemory("Capture_Mode"); // "1" or "2"
+    if (modeStr == "2") return L"Duplication";
+    if (modeStr == "1") return L"WGC";
+
+    // fallback: レジストリ
+    std::wstring reg = ReadCaptureTypeFromRegistry();
+    if (!reg.empty()) return reg;
+
+    return L"WGC"; // safest default
+}
+
 static bool QueryServerReadyEventNonBlocking()
 {
     HANDLE h = OpenEventW(SYNCHRONIZE, FALSE, L"Global\\REMOTE_SERVER_READY_EVENT_V1");
@@ -727,7 +742,7 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
 
     // (Optional) show active backend status
     {
-        std::wstring active = ReadCaptureTypeFromRegistry();
+        std::wstring active = GetActiveCaptureTypeLabel();
         if (!active.empty()) {
             std::wstring label = L"Active: " + active;
             AppendMenuW(hMenu, MF_STRING | MF_GRAYED | MF_DISABLED, 0, label.c_str());
