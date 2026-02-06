@@ -212,6 +212,17 @@ bool TaskTrayApp::Initialize() {
         // We do not abort here, as the service might start later.
     }
 
+    // SecureAgent が参照するターゲット（SECURE_DESKTOP_TARGET_DISP_INFO）を初期同期しておく
+    {
+        SharedMemoryHelper smh;
+        const std::string dispInfo = smh.ReadSharedMemory("DISP_INFO");
+        const std::string secureTarget = smh.ReadSharedMemory("SECURE_DESKTOP_TARGET_DISP_INFO");
+        if (!dispInfo.empty() && secureTarget.empty()) {
+            smh.WriteSharedMemory("SECURE_DESKTOP_TARGET_DISP_INFO", dispInfo);
+            DebugLog("Initialize: Synced SECURE_DESKTOP_TARGET_DISP_INFO from DISP_INFO.");
+        }
+    }
+
     return true;
 }
 
