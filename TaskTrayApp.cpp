@@ -408,6 +408,9 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
 
     // Persist the new selection to shared memory
     if (sharedMemoryHelper.WriteSharedMemory("DISP_INFO", selectedSerial)) {
+        // Secure Agent 用の保険キー
+        sharedMemoryHelper.WriteSharedMemory("SECURE_DESKTOP_TARGET_DISP_INFO", selectedSerial);
+
         DebugLog("SelectDisplay: New display selected. Serial: " + selectedSerial);
 
         // Signal the event to notify the service
