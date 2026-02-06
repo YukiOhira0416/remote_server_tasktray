@@ -48,7 +48,7 @@ std::atomic<bool> g_controlPanelRunning{ false };
 std::atomic<QMainWindow*> g_controlPanelWindow{ nullptr };
 std::atomic<std::uint64_t> g_controlPanelToken{ 0 };
 
-static std::wstring ReadCaptureTypeActiveFromRegistry()
+static std::wstring ReadCaptureTypeFromRegistry()
 {
     HKEY hKey = nullptr;
     std::wstring out;
@@ -56,7 +56,7 @@ static std::wstring ReadCaptureTypeActiveFromRegistry()
         wchar_t buf[256] = {};
         DWORD cb = sizeof(buf);
         DWORD type = 0;
-        if (RegQueryValueExW(hKey, L"CaptureTypeActive", nullptr, &type, reinterpret_cast<LPBYTE>(buf), &cb) == ERROR_SUCCESS) {
+        if (RegQueryValueExW(hKey, L"CaptureType", nullptr, &type, reinterpret_cast<LPBYTE>(buf), &cb) == ERROR_SUCCESS) {
             if (type == REG_SZ) out = buf;
         }
         RegCloseKey(hKey);
@@ -727,7 +727,7 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
 
     // (Optional) show active backend status
     {
-        std::wstring active = ReadCaptureTypeActiveFromRegistry();
+        std::wstring active = ReadCaptureTypeFromRegistry();
         if (!active.empty()) {
             std::wstring label = L"Active: " + active;
             AppendMenuW(hMenu, MF_STRING | MF_GRAYED | MF_DISABLED, 0, label.c_str());
