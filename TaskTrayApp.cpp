@@ -423,6 +423,14 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
 
 void TaskTrayApp::SetCaptureMode(int mode) {
     SharedMemoryHelper sharedMemoryHelper; // No args
+
+    // Secure Desktop 中は Service が Capture_Mode を強制制御するため、ユーザー操作は無効化する
+    std::string secureFlag = sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE");
+    if (secureFlag == "1") {
+        DebugLog("SetCaptureMode: SECURE_DESKTOP_ACTIVE=1. Ignoring user capture mode change.");
+        return;
+    }
+
     std::string modeValue = std::to_string(mode);
     DebugLog("SetCaptureMode: Setting capture mode to " + modeValue);
     if (sharedMemoryHelper.WriteSharedMemory("Capture_Mode", modeValue)) {
@@ -753,10 +761,12 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
     SharedMemoryHelper sharedMemoryHelper; // No args
 
     // Reboot / ServerReady 判定
+    std::string secureVal = sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE");
+    bool isSecure = (secureVal == "1");
     std::string rebootVal = sharedMemoryHelper.ReadSharedMemory("REBOOT");
     bool isRebooting = (rebootVal == "1");
     bool isServerReady = QueryServerReadyEventNonBlocking();
-    bool disableCaptureMode = isRebooting || !isServerReady;
+    bool disableCaptureMode = isSecure || isRebooting || !isServerReady;
 
     std::string captureModeStr = sharedMemoryHelper.ReadSharedMemory("Capture_Mode");
     int captureMode = 1;
@@ -783,7 +793,11 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
     if (disableCaptureMode) {
         normalFlags |= (MF_GRAYED | MF_DISABLED);
         gameFlags   |= (MF_GRAYED | MF_DISABLED);
-        AppendMenuW(hMenu, MF_STRING | MF_GRAYED | MF_DISABLED, 0, L"Rebooting / Server not ready");
+        if (isSecure) {
+            AppendMenuW(hMenu, MF_STRING | MF_GRAYED | MF_DISABLED, 0, L"Secure Desktop Active");
+        } else {
+            AppendMenuW(hMenu, MF_STRING | MF_GRAYED | MF_DISABLED, 0, L"Rebooting / Server not ready");
+        }
         AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     }
 
