@@ -390,9 +390,8 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
 
     SharedMemoryHelper sharedMemoryHelper; // No args
 
-    // Secure Desktop 中は Agent が DISP_INFO を自動制御するため、ユーザー操作は無効化する
-    std::string secureFlag = sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE");
-    if (secureFlag == "1") {
+    // セキュア中は Service/Agent が強制制御するのでユーザ操作無効
+    if (sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE") == "1") {
         DebugLog("SelectDisplay: SECURE_DESKTOP_ACTIVE=1. Ignoring user display selection.");
         return;
     }
@@ -424,9 +423,8 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
 void TaskTrayApp::SetCaptureMode(int mode) {
     SharedMemoryHelper sharedMemoryHelper; // No args
 
-    // Secure Desktop 中は Service が Capture_Mode を強制制御するため、ユーザー操作は無効化する
-    std::string secureFlag = sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE");
-    if (secureFlag == "1") {
+    // セキュア中は Service が Capture_Mode を強制制御するのでユーザ操作無効
+    if (sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE") == "1") {
         DebugLog("SetCaptureMode: SECURE_DESKTOP_ACTIVE=1. Ignoring user capture mode change.");
         return;
     }
@@ -760,13 +758,11 @@ void TaskTrayApp::UpdateCaptureModeMenu(HMENU hMenu) {
 
     SharedMemoryHelper sharedMemoryHelper; // No args
 
-    // Reboot / ServerReady 判定
-    std::string secureVal = sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE");
-    bool isSecure = (secureVal == "1");
-    std::string rebootVal = sharedMemoryHelper.ReadSharedMemory("REBOOT");
-    bool isRebooting = (rebootVal == "1");
-    bool isServerReady = QueryServerReadyEventNonBlocking();
-    bool disableCaptureMode = isSecure || isRebooting || !isServerReady;
+    // disable 条件：secure / reboot / server not ready
+    const bool isSecure = (sharedMemoryHelper.ReadSharedMemory("SECURE_DESKTOP_ACTIVE") == "1");
+    const bool isRebooting = (sharedMemoryHelper.ReadSharedMemory("REBOOT") == "1");
+    const bool isServerReady = QueryServerReadyEventNonBlocking();
+    const bool disableCaptureMode = isSecure || isRebooting || !isServerReady;
 
     std::string captureModeStr = sharedMemoryHelper.ReadSharedMemory("Capture_Mode");
     int captureMode = 1;
