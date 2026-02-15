@@ -13,6 +13,7 @@
 #include "DebugLog.h"
 #include "Globals.h"
 #include "OverlayManager.h"
+#include "DisplaySyncServer.h"
 #include <fstream>
 #include <ctime>
 #include <iomanip>
@@ -81,6 +82,7 @@ std::filesystem::path GetExecutablePath() {
 
 TaskTrayApp::TaskTrayApp(HINSTANCE hInst) : hInstance(hInst), hwnd(NULL), running(true) {
     ZeroMemory(&nid, sizeof(nid));
+    displaySyncServer = nullptr;
 }
 
 
@@ -155,6 +157,13 @@ bool TaskTrayApp::Initialize() {
         // We do not abort here, as the service might start later.
     }
 
+    if (!displaySyncServer) {
+        displaySyncServer = new DisplaySyncServer(this);
+        if (!displaySyncServer->Start(8500)) {
+            DebugLog("TaskTrayApp::Initialize: Failed to start DisplaySyncServer on port 8500.");
+        }
+    }
+
     return true;
 }
 
@@ -184,6 +193,12 @@ bool TaskTrayApp::Cleanup() {
 
     // スレッドの停止を指示
     running = false;
+
+    if (displaySyncServer) {
+        displaySyncServer->Stop();
+        delete displaySyncServer;
+        displaySyncServer = nullptr;
+    }
 
     // 共有メモリとイベントを削除
     // SharedMemoryHelper is now Open-only and client-side doesn't delete anything.
@@ -311,6 +326,55 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
     }
 
     DebugLog("UpdateDisplayMenu: Finished updating display menu.");
+    if (displaySyncServer) {
+        displaySyncServer->BroadcastCurrentState();
+    }
+}
+
+void TaskTrayApp::GetDisplayStateForSync(int& outDisplayCount, int& outActiveDisplayIndex)
+{
+    outDisplayCount = 0;
+    outActiveDisplayIndex = -1;
+
+    SharedMemoryHelper sharedMemoryHelper; // No args
+
+    std::string numDisplaysStr = sharedMemoryHelper.ReadSharedMemory("DISP_INFO_NUM");
+    int numDisplays = 0;
+    if (!numDisplaysStr.empty()) {
+        try {
+            numDisplays = std::stoi(numDisplaysStr);
+        }
+        catch (...) {
+            numDisplays = 0;
+        }
+    }
+
+    if (numDisplays < 0) {
+        numDisplays = 0;
+    }
+    if (numDisplays > MAX_DISPLAY_MENU_ITEMS) {
+        numDisplays = MAX_DISPLAY_MENU_ITEMS;
+    }
+
+    outDisplayCount = numDisplays;
+
+    if (numDisplays <= 0) {
+        return;
+    }
+
+    std::string selectedSerial = sharedMemoryHelper.ReadSharedMemory("DISP_INFO");
+    if (selectedSerial.empty()) {
+        return;
+    }
+
+    for (int idx = 0; idx < numDisplays; ++idx) {
+        std::string key = "DISP_INFO_" + std::to_string(idx);
+        std::string serial = sharedMemoryHelper.ReadSharedMemory(key);
+        if (!serial.empty() && serial == selectedSerial) {
+            outActiveDisplayIndex = idx; // 0-based index
+            break;
+        }
+    }
 }
 
 void TaskTrayApp::SelectDisplay(int displayIndex) {
@@ -338,6 +402,9 @@ void TaskTrayApp::SelectDisplay(int displayIndex) {
         // Update the tray icon tooltip to reflect the new selection
         std::wstring newTooltip = L"Display Manager - Selected: Display " + std::to_wstring(displayIndex + 1);
         UpdateTrayTooltip(newTooltip);
+        if (displaySyncServer) {
+            displaySyncServer->BroadcastCurrentState();
+        }
     } else {
         DebugLog("SelectDisplay: Failed to write to shared memory (Service not ready?).");
     }

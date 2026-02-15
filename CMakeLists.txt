@@ -132,6 +132,7 @@ set(SOURCES
     StringConversion.cpp
     Utility.cpp
     OverlayManager.cpp
+    DisplaySyncServer.cpp
 )
 
 # TaskTrayApp.cppファイルに対してAutoUICを無効化
@@ -150,6 +151,7 @@ set(HEADERS
     targetver.h
     Resource.h
     OverlayManager.h
+    DisplaySyncServer.h
 )
 
 # リソースファイル
@@ -187,6 +189,7 @@ target_link_libraries(${PROJECT_NAME}
     d3d11
     Shcore
     Qt6::Widgets
+    ws2_32
 )
 
 # コンパイラ固有の設定

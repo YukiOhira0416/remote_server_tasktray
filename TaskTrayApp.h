@@ -8,6 +8,7 @@
 #include <atomic>
 #include "Globals.h"
 
+class DisplaySyncServer;
 class TaskTrayApp {
 public:
     TaskTrayApp(HINSTANCE hInstance);
@@ -19,6 +20,7 @@ public:
     void UpdateDisplayMenu(HMENU hMenu);
     void UpdateCaptureModeMenu(HMENU hMenu);
     void SelectDisplay(int displayIndex);
+    void GetDisplayStateForSync(int& outDisplayCount, int& outActiveDisplayIndex);
     void SetCaptureMode(int mode);
     void ShowControlPanel();
     bool RefreshDisplayList();
@@ -31,6 +33,7 @@ private:
     HINSTANCE hInstance;
     HWND hwnd;
     NOTIFYICONDATA nid;
+    DisplaySyncServer* displaySyncServer;
     std::atomic<bool> running = true;
     std::atomic<bool> cleaned = false;
 };
