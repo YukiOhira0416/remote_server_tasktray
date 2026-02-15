@@ -42,6 +42,7 @@ constexpr UINT ID_DISPLAY_BASE = 100;
 constexpr UINT ID_CAPTURE_MODE_NORMAL = 200;
 constexpr UINT ID_CAPTURE_MODE_GAME = 201;
 constexpr UINT ID_CONTROL_PANEL = 300;
+constexpr int MAX_DISPLAY_MENU_ITEMS = 4;
 
 std::atomic<bool> g_controlPanelRunning{ false };
 std::atomic<QMainWindow*> g_controlPanelWindow{ nullptr };
@@ -271,6 +272,12 @@ void TaskTrayApp::UpdateDisplayMenu(HMENU hMenu) {
         return;
     }
 
+    if (numDisplays > MAX_DISPLAY_MENU_ITEMS) {
+        DebugLog("UpdateDisplayMenu: numDisplays (" + std::to_string(numDisplays) +
+                 ") exceeds MAX_DISPLAY_MENU_ITEMS (" + std::to_string(MAX_DISPLAY_MENU_ITEMS) + "). Clamping.");
+        numDisplays = MAX_DISPLAY_MENU_ITEMS;
+    }
+
     if (numDisplays == 0) {
         AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS, _T("No displays found (DISP_INFO_NUM=0)"));
         AppendMenu(hMenu, MF_STRING | MF_GRAYED, ID_DISPLAY_STATUS + 1, _T("If server is running, check shared-memory permission (service security descriptor / integrity level)."));
@@ -478,6 +485,10 @@ LRESULT CALLBACK TaskTrayApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
                 catch (...) {}
             }
 
+            if (numDisplays > MAX_DISPLAY_MENU_ITEMS) {
+                numDisplays = MAX_DISPLAY_MENU_ITEMS;
+            }
+
             int selectedIndex = -1;
             for (int idx = 0; idx < numDisplays; ++idx) {
                 std::string key = "DISP_INFO_" + std::to_string(idx);
@@ -603,6 +614,10 @@ bool TaskTrayApp::RefreshDisplayList() {
     std::string selectedSerial = sharedMemoryHelper.ReadSharedMemory("DISP_INFO");
     int numDisplays = 0;
     try { numDisplays = std::stoi(numDisplaysStr); } catch (...) {}
+
+    if (numDisplays > MAX_DISPLAY_MENU_ITEMS) {
+        numDisplays = MAX_DISPLAY_MENU_ITEMS;
+    }
 
     int selectedIndex = -1;
     for (int idx = 0; idx < numDisplays; ++idx) {
