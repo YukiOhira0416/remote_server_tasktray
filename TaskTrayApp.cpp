@@ -42,7 +42,7 @@ constexpr UINT ID_DISPLAY_BASE = 100;
 constexpr UINT ID_CAPTURE_MODE_NORMAL = 200;
 constexpr UINT ID_CAPTURE_MODE_GAME = 201;
 constexpr UINT ID_CONTROL_PANEL = 300;
-constexpr int MAX_DISPLAY_MENU_ITEMS = 4;
+constexpr int MAX_DISPLAY_MENU_ITEMS = 4; // Max items in "Select Display" submenu
 
 std::atomic<bool> g_controlPanelRunning{ false };
 std::atomic<QMainWindow*> g_controlPanelWindow{ nullptr };
