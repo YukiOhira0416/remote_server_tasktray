@@ -4,7 +4,7 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "C:/Qt/6.10.0/msvc2022_64/include"
+                "C:/Qt/6.10.2/msvc2022_64/include"
             ],
             "defines": [
                 "_DEBUG",
@@ -15,7 +15,7 @@
                 "_CRT_SECURE_NO_WARNINGS"
             ],
             "windowsSdkVersion": "10.0.22621.0",
-            "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.37.32822/bin/Hostx64/x64/cl.exe",
+            "compilerPath": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-msvc-x64",
