@@ -269,6 +269,38 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/Release
 )
 
+# windeployqtを使用してQt DLLを配置
+if(WIN32)
+    # Qt6のwindeployqtを探す
+    find_program(WINDEPLOYQT_EXECUTABLE 
+        NAMES windeployqt
+        HINTS 
+            "${Qt6_DIR}/../../../bin"
+            "C:/Qt/6.10.2/msvc2022_64/bin"
+            "C:/Qt/6.10.0/msvc2022_64/bin"
+            "C:/Qt/6.9.3/msvc2022_64/bin"
+    )
+    
+    if(WINDEPLOYQT_EXECUTABLE)
+        message(STATUS "Found windeployqt: ${WINDEPLOYQT_EXECUTABLE}")
+        
+        # Debug用
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+                --verbose 1
+                --no-translations
+                --no-system-d3d-compiler
+                --no-opengl-sw
+                "$<TARGET_FILE:${PROJECT_NAME}>"
+            COMMENT "Running windeployqt for Debug build..."
+            WORKING_DIRECTORY $<TARGET_FILE_DIR:${PROJECT_NAME}>
+        )
+    else()
+        message(WARNING "windeployqt not found. Qt DLLs will need to be copied manually.")
+        message(STATUS "Please add Qt bin directory to PATH or copy Qt DLLs manually.")
+    endif()
+endif()
+
 # Visual Studioのフィルター設定（オプション）
 if(MSVC)
     source_group("Header Files" FILES ${HEADERS})
