@@ -97,10 +97,10 @@
     "C_Cpp.errorSquiggles": "enabled",
     "C_Cpp.autocomplete": "default",
     "C_Cpp.suggestSnippets": true,
-    "cmake.generator": "Visual Studio 17 2022",
+    "cmake.generator": "Visual Studio 18 2026",
     "cmake.preferredGenerators": [
+        "Visual Studio 18 2026",
         "Visual Studio 17 2022",
-        "Visual Studio 16 2019",
-        "Visual Studio 15 2017"
+        "Visual Studio 16 2019"
     ]
 }
