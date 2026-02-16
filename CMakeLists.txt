@@ -2,10 +2,14 @@ cmake_minimum_required(VERSION 3.16)
 
 project(remote_server_tasktray)
 
+# Qt6のパスを直接設定
+list(APPEND CMAKE_PREFIX_PATH "C:/Qt/6.10.2/msvc2022_64")
+
 # Qt6のパスを設定
 if(NOT DEFINED Qt6_DIR)
     # 一般的なQt6インストールパスを検索
     set(QT6_SEARCH_PATHS
+        "C:/Qt/6.10.2/msvc2022_64"
         "C:/Qt/6.10.0/msvc2022_64"
         "C:/Qt/6.9.3/msvc2022_64"
     )
