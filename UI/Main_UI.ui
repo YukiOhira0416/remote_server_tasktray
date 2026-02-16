@@ -10,28 +10,64 @@
     <height>720</height>
    </rect>
   </property>
+  <property name="minimumSize">
+   <size>
+    <width>1280</width>
+    <height>720</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>1280</width>
+    <height>720</height>
+   </size>
+  </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <property name="styleSheet">
     <string notr="true">QWidget {
-	background-color: #5d8cae;
+	background-color: #0a0a0a;
 
 }</string>
    </property>
+   <widget class="QLabel" name="label_background">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>1280</width>
+      <height>691</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+    <property name="pixmap">
+     <pixmap>background_picture_1.png</pixmap>
+    </property>
+    <property name="scaledContents">
+     <bool>true</bool>
+    </property>
+   </widget>
    <widget class="QTabWidget" name="tabWidget">
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>140</y>
+      <y>155</y>
       <width>1241</width>
-      <height>541</height>
+      <height>526</height>
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">QTabWidget QWidget {
-	background: #dddddd;
+     <string notr="true">QTabWidget::pane {
+	background: transparent;
+	border: none;
+}
+
+QTabWidget QWidget {
+	background: transparent;
 }
 
 
@@ -39,20 +75,21 @@ QTabBar::tab {
 	min-width: 300px;
 	min-height: 35px;
 	padding: 5px;
-	background: lightgray;
-	color: black;
-	border: 1px soloid gray;
+	background: #3a3a3a;
+	color: white;
+	border: 1px solid #555555;
 	border-bottom: none;
 
 }
 
 QTabBar::tab:selected {
-	background: #00a3af;
+	background: #0a0a0a;
 	color: white;
+	border: 2px solid white;
 }
 
 QTabBar::tab:hover {
-	background: lightblue;
+	background: #2a2a2a;
 
 }</string>
     </property>
@@ -61,66 +98,98 @@ QTabBar::tab:hover {
     </property>
     <widget class="QWidget" name="tab_0">
      <property name="styleSheet">
-      <string notr="true">QPushButton {
+      <string notr="true">QLabel {
+	color: white;
+}
+
+QPushButton {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
+	background-color: #2a2a2a;
+	color: white;
+	border: 1px solid white;
+	padding: 5px;
+}
+
+QPushButton:hover {
+	background-color: #3a3a3a;
+}
+
+QTextEdit {
+	background-color: #1a1a1a;
+	color: white;
+	border: 1px solid white;
+}
+
+QTextBrowser {
+	background-color: #1a1a1a;
+	color: white;
+	border: 1px solid white;
 }
 
 #label_00 {
 	font-family: &quot;Arial&quot;;
 	font-size: 25px;
 	font-weight: bold;
+	color: white;
 }
 
 #label_01 {
 	font-family: &quot;Arial&quot;;
 	font-size: 25px;
 	font-weight: bold;
+	color: white;
 }
 
 #label_02 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
+	color: white;
 }
 
 #label_03 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
+	color: white;
 }
 
 #label_04 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
+	color: white;
 }
 
 
 #label_05 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
+	color: white;
 }
 
 #label_06 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
-	color: red;
+	color: #ff6666;
 }
 
 #label_07 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
-	color: red;
+	color: #ff6666;
 }
 
 #label_08 {
 	font-family: &quot;Arial&quot;;
 	font-size: 25px;
 	font-weight: bold;
+	color: white;
 }
 
 #label_09 {
 	font-family: &quot;Arial&quot;;
 	font-size: 25px;
 	font-weight: bold;
+	color: white;
 }
 </string>
      </property>
@@ -358,62 +427,52 @@ QTabBar::tab:hover {
     </widget>
     <widget class="QWidget" name="tab_1">
      <property name="styleSheet">
-      <string notr="true">#label_10 {
+      <string notr="true">QLabel {
+	color: white;
+}
+
+QGroupBox {
+	color: white;
+	border: 2px solid white;
+	border-radius: 5px;
+	margin-top: 10px;
+	background-color: #0a0a0a;
+}
+
+QGroupBox::title {
+	color: white;
+	subcontrol-origin: margin;
+	left: 10px;
+	padding: 0 5px 0 5px;
+}
+
+QPushButton {
+	background-color: #2a2a2a;
+	color: white;
+	border: 1px solid white;
+	padding: 5px;
+}
+
+QPushButton:hover {
+	background-color: #3a3a3a;
+}
+
+#label_10 {
 	font-family: &quot;Arial&quot;;
 	font-size: 25px;
 	font-weight: bold;
+	color: white;
 }</string>
      </property>
      <attribute name="title">
       <string>Settings</string>
      </attribute>
-     <widget class="QGroupBox" name="groupBox_0">
-      <property name="geometry">
-       <rect>
-        <x>66</x>
-        <y>74</y>
-        <width>941</width>
-        <height>95</height>
-       </rect>
-      </property>
-      <property name="title">
-       <string>Auto</string>
-      </property>
-      <widget class="QLabel" name="label_11">
-       <property name="geometry">
-        <rect>
-         <x>151</x>
-         <y>20</y>
-         <width>761</width>
-         <height>61</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>This mode automatically adjusts image quality based on network speed and the client application's status. 
-It strives to maintain the highest possible quality, but in some cases text and other details may become difficult to read. 
-This mode is useful when the connection speed is unknown.</string>
-       </property>
-      </widget>
-      <widget class="QCheckBox" name="checkBox_0">
-       <property name="geometry">
-        <rect>
-         <x>89</x>
-         <y>40</y>
-         <width>40</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-     </widget>
      <widget class="QGroupBox" name="groupBox_1">
       <property name="geometry">
        <rect>
-        <x>66</x>
-        <y>176</y>
-        <width>941</width>
+        <x>26</x>
+        <y>74</y>
+        <width>1001</width>
         <height>95</height>
        </rect>
       </property>
@@ -426,8 +485,39 @@ This mode is useful when the connection speed is unknown.</string>
          <x>89</x>
          <y>41</y>
          <width>40</width>
-         <height>20</height>
+         <height>30</height>
         </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QCheckBox::indicator {
+    width: 24px;
+    height: 24px;
+    border: 3px solid white;
+    border-radius: 2px;
+    background-color: #0a0a0a;
+}
+
+QCheckBox::indicator:hover {
+    border: 3px solid #cccccc;
+    background-color: #1a1a1a;
+}
+
+QCheckBox::indicator:unchecked {
+    background-color: #0a0a0a;
+    border: 3px solid white;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #0a0a0a;
+    border: 3px solid white;
+    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
+}
+
+QCheckBox::indicator:checked:hover {
+    background-color: #1a1a1a;
+    border: 3px solid #cccccc;
+    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
+}</string>
        </property>
        <property name="text">
         <string/>
@@ -438,23 +528,21 @@ This mode is useful when the connection speed is unknown.</string>
         <rect>
          <x>151</x>
          <y>17</y>
-         <width>761</width>
+         <width>821</width>
          <height>61</height>
         </rect>
        </property>
        <property name="text">
-        <string>This mode is for low-bandwidth connections. It sets the image quality delivered to the client to match a 100 Mbps connection. 
-To ensure appropriate quality, the client’s display area resolution is limited to a maximum of 1920 × 1080. 
-It’s ideal for remote gaming over slower connections, and it can also help when text is hard to read in Auto mode.</string>
+        <string>Network speed: ~100 Mbps / Max resolution of client display area: 1920×1080</string>
        </property>
       </widget>
      </widget>
      <widget class="QGroupBox" name="groupBox_2">
       <property name="geometry">
        <rect>
-        <x>66</x>
-        <y>282</y>
-        <width>941</width>
+        <x>26</x>
+        <y>180</y>
+        <width>1001</width>
         <height>95</height>
        </rect>
       </property>
@@ -467,8 +555,39 @@ It’s ideal for remote gaming over slower connections, and it can also help whe
          <x>89</x>
          <y>42</y>
          <width>40</width>
-         <height>20</height>
+         <height>30</height>
         </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QCheckBox::indicator {
+    width: 24px;
+    height: 24px;
+    border: 3px solid white;
+    border-radius: 2px;
+    background-color: #0a0a0a;
+}
+
+QCheckBox::indicator:hover {
+    border: 3px solid #cccccc;
+    background-color: #1a1a1a;
+}
+
+QCheckBox::indicator:unchecked {
+    background-color: #0a0a0a;
+    border: 3px solid white;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #0a0a0a;
+    border: 3px solid white;
+    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
+}
+
+QCheckBox::indicator:checked:hover {
+    background-color: #1a1a1a;
+    border: 3px solid #cccccc;
+    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
+}</string>
        </property>
        <property name="text">
         <string/>
@@ -479,24 +598,21 @@ It’s ideal for remote gaming over slower connections, and it can also help whe
         <rect>
          <x>151</x>
          <y>22</y>
-         <width>761</width>
+         <width>821</width>
          <height>61</height>
         </rect>
        </property>
        <property name="text">
-        <string>This mode is for medium-bandwidth connections and is effective for networks of roughly 150–250 Mbps. 
-It sets the image quality delivered to the client to match your connection speed. 
-To ensure appropriate quality, the client’s display area resolution is limited to a maximum of 2560 × 1440. 
-It’s ideal for remote gaming at higher quality than the Low-Bandwidth mode, and it can also help when text is hard to read in Auto mode.</string>
+        <string>Network speed: 150-250 Mbps / Max resolution of client display area: 2560×1440</string>
        </property>
       </widget>
      </widget>
      <widget class="QGroupBox" name="groupBox_3">
       <property name="geometry">
        <rect>
-        <x>66</x>
-        <y>385</y>
-        <width>941</width>
+        <x>26</x>
+        <y>286</y>
+        <width>1001</width>
         <height>95</height>
        </rect>
       </property>
@@ -509,8 +625,39 @@ It’s ideal for remote gaming at higher quality than the Low-Bandwidth mode, an
          <x>89</x>
          <y>41</y>
          <width>40</width>
-         <height>20</height>
+         <height>30</height>
         </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QCheckBox::indicator {
+    width: 24px;
+    height: 24px;
+    border: 3px solid white;
+    border-radius: 2px;
+    background-color: #0a0a0a;
+}
+
+QCheckBox::indicator:hover {
+    border: 3px solid #cccccc;
+    background-color: #1a1a1a;
+}
+
+QCheckBox::indicator:unchecked {
+    background-color: #0a0a0a;
+    border: 3px solid white;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #0a0a0a;
+    border: 3px solid white;
+    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
+}
+
+QCheckBox::indicator:checked:hover {
+    background-color: #1a1a1a;
+    border: 3px solid #cccccc;
+    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
+}</string>
        </property>
        <property name="text">
         <string/>
@@ -521,21 +668,19 @@ It’s ideal for remote gaming at higher quality than the Low-Bandwidth mode, an
         <rect>
          <x>151</x>
          <y>21</y>
-         <width>761</width>
+         <width>821</width>
          <height>61</height>
         </rect>
        </property>
        <property name="text">
-        <string>This mode is optimized for high-speed connections and is suitable for environments with speeds of 300 Mbps or higher. 
-Select this mode if you want to remote-play games comfortably at maximum image quality. 
-The client application supports a maximum display resolution of 3860 × 2160.</string>
+        <string>Network speed: 300+ Mbps / Max resolution of client display area: 3840×2160</string>
        </property>
       </widget>
      </widget>
      <widget class="QPushButton" name="pushButton_2">
       <property name="geometry">
        <rect>
-        <x>1055</x>
+        <x>1095</x>
         <y>440</y>
         <width>121</width>
         <height>41</height>

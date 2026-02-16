@@ -28,6 +28,7 @@
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QWidget>
+#include <QtWidgets/QCheckBox>
 #include <QtCore/QMetaObject>
 #include <QtCore/QObject>
 #include <QtCore/Qt>
@@ -454,6 +455,10 @@ void TaskTrayApp::ShowControlPanel() {
     DebugLog("ShowControlPanel: Launching control panel UI.");
 
     std::thread([token]() {
+        // 高DPIスケーリングを無効化（実ピクセルサイズで表示）
+        qputenv("QT_ENABLE_HIGHDPI_SCALING", "0");
+        qputenv("QT_SCALE_FACTOR", "1");
+        
         int argc = 0;
         char* argv[] = { nullptr };
         QApplication app(argc, argv);
@@ -462,6 +467,32 @@ void TaskTrayApp::ShowControlPanel() {
         auto mainWindow = std::make_unique<QMainWindow>();
         Ui_MainWindow ui;
         ui.setupUi(mainWindow.get());
+
+        // チェックボックスを排他的にする（1つだけ選択可能）
+        QCheckBox* cb1 = ui.checkBox_1;
+        QCheckBox* cb2 = ui.checkBox_2;
+        QCheckBox* cb3 = ui.checkBox_3;
+
+        QObject::connect(cb1, &QCheckBox::toggled, [cb2, cb3](bool checked) {
+            if (checked) {
+                cb2->setChecked(false);
+                cb3->setChecked(false);
+            }
+        });
+
+        QObject::connect(cb2, &QCheckBox::toggled, [cb1, cb3](bool checked) {
+            if (checked) {
+                cb1->setChecked(false);
+                cb3->setChecked(false);
+            }
+        });
+
+        QObject::connect(cb3, &QCheckBox::toggled, [cb1, cb2](bool checked) {
+            if (checked) {
+                cb1->setChecked(false);
+                cb2->setChecked(false);
+            }
+        });
 
         QMainWindow* rawWindow = mainWindow.get();
 
