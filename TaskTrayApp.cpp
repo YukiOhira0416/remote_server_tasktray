@@ -462,7 +462,8 @@ void TaskTrayApp::UpdateOptimizedPlanFromUi(int plan) {
     std::string value = std::to_string(plan);
     DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: Setting OptimizedPlan to " + value);
     if (!sharedMemoryHelper.WriteSharedMemory("OptimizedPlan", value)) {
-        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: Failed to write OptimizedPlan (service not ready?).");
+        DWORD err = GetLastError();
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: Failed to write OptimizedPlan (service not ready?). err=" + std::to_string(err));
     }
     else {
         DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: OptimizedPlan written to shared memory.");
@@ -496,7 +497,8 @@ void TaskTrayApp::UpdateOptimizedPlanFromNetwork(int plan) {
     std::string value = std::to_string(plan);
     DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: Setting OptimizedPlan to " + value + " (from network)");
     if (!sharedMemoryHelper.WriteSharedMemory("OptimizedPlan", value)) {
-        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: Failed to write OptimizedPlan (service not ready?).");
+        DWORD err = GetLastError();
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: Failed to write OptimizedPlan (service not ready?). err=" + std::to_string(err));
     }
     else {
         DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: OptimizedPlan written to shared memory (from network).");

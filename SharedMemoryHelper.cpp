@@ -20,14 +20,40 @@ SharedMemoryHelper::SharedMemoryHelper() {}
 
 bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::string& data) {
     const std::wstring wKey = ConvertStringToWString(name);
-    const std::wstring mapName   = L"Global\\" + wKey;
-    const std::wstring mutexName = L"Global\\" + wKey + L"_Mutex";
-    const std::wstring eventName = L"Global\\" + wKey + L"_Event";
 
-    // Try to open mutex. If it doesn't exist, we assume the service is not ready.
-    HANDLE hMutex = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, mutexName.c_str());
+    // We support both Global\ and Local\ namespaces.
+    // Try Global first (service-created objects), then Local as a fallback for
+    // same-session scenarios.
+    const wchar_t* kNamespaces[]     = { L"Global\\", L"Local\\" };
+    const char*    kNamespaceNames[] = { "Global",    "Local"    };
+
+    std::wstring chosenPrefix;
+    HANDLE       hMutex  = nullptr;
+    DWORD        lastErr = 0;
+
+    // Try to open mutex in Global then Local.
+    for (int i = 0; i < 2 && !hMutex; ++i) {
+        std::wstring mutexName = std::wstring(kNamespaces[i]) + wKey + L"_Mutex";
+        hMutex = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, mutexName.c_str());
+        if (!hMutex) {
+            lastErr = GetLastError();
+            if (lastErr != ERROR_FILE_NOT_FOUND) {
+                DebugLog(
+                    std::string("WriteSharedMemory: OpenMutex failed (") + name +
+                    ") ns=" + kNamespaceNames[i] +
+                    " err=" + std::to_string(lastErr));
+                // For non-FNF errors we bail out immediately.
+                return false;
+            }
+        } else {
+            chosenPrefix = kNamespaces[i];
+        }
+    }
+
     if (!hMutex) {
-        DebugLog("WriteSharedMemory: OpenMutex failed (" + name + ") err=" + std::to_string(GetLastError()));
+        DebugLog(
+            std::string("WriteSharedMemory: OpenMutex failed (") + name +
+            ") in both Global and Local namespaces. lastErr=" + std::to_string(lastErr));
         return false;
     }
 
@@ -35,11 +61,14 @@ bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::s
     bool locked = (waitResult == WAIT_OBJECT_0 || waitResult == WAIT_ABANDONED);
 
     if (waitResult == WAIT_ABANDONED) {
-         DebugLog("WriteSharedMemory: Mutex abandoned (" + name + "). Proceeding.");
+        DebugLog("WriteSharedMemory: Mutex abandoned (" + name + "). Proceeding.");
     } else if (waitResult == WAIT_TIMEOUT) {
-         DebugLog("WriteSharedMemory: Mutex timeout (" + name + "). Proceeding without lock.");
-         // We can choose to fail here, but best-effort write is usually better for UI responsiveness.
+        DebugLog("WriteSharedMemory: Mutex timeout (" + name + "). Proceeding without lock.");
+        // We can choose to fail here, but best-effort write is usually better for UI responsiveness.
     }
+
+    std::wstring mapName   = chosenPrefix + wKey;
+    std::wstring eventName = chosenPrefix + wKey + L"_Event";
 
     // Try to open file mapping.
     HANDLE hMap = OpenFileMappingW(FILE_MAP_WRITE, FALSE, mapName.c_str());
@@ -87,20 +116,52 @@ bool SharedMemoryHelper::WriteSharedMemory(const std::string& name, const std::s
 
 std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
     const std::wstring wKey = ConvertStringToWString(name);
-    const std::wstring mapName   = L"Global\\" + wKey;
-    const std::wstring mutexName = L"Global\\" + wKey + L"_Mutex";
 
-    HANDLE hMutex = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, mutexName.c_str());
-    bool locked = false;
+    const wchar_t* kNamespaces[]     = { L"Global\\", L"Local\\" };
+    const char*    kNamespaceNames[] = { "Global",    "Local"    };
+
+    HANDLE       hMutex        = nullptr;
+    bool         locked        = false;
+    std::wstring chosenPrefix;
+    DWORD        lastErr       = 0;
+
+    // Try to open mutex in Global then Local.
+    for (int i = 0; i < 2 && !hMutex; ++i) {
+        std::wstring mutexName = std::wstring(kNamespaces[i]) + wKey + L"_Mutex";
+        hMutex = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, mutexName.c_str());
+        if (!hMutex) {
+            lastErr = GetLastError();
+            if (lastErr != ERROR_FILE_NOT_FOUND) {
+                // AccessDenied(5) is possible, so don't misdiagnose, but we also
+                // do not want to spam logs on every tick if the service is down.
+                DebugLog(
+                    std::string("ReadSharedMemory: OpenMutex failed (") + name +
+                    ") ns=" + kNamespaceNames[i] +
+                    " err=" + std::to_string(lastErr));
+                // In this case treat as hard failure.
+                return "";
+            }
+        } else {
+            chosenPrefix = kNamespaces[i];
+        }
+    }
+
     if (hMutex) {
         DWORD wr = WaitForSingleObject(hMutex, 2000);
         locked = (wr == WAIT_OBJECT_0 || wr == WAIT_ABANDONED);
     } else {
-        // AccessDenied(5) is possible, so don't misdiagnose.
-        DebugLog("ReadSharedMemory: OpenMutex failed (" + name + ") err=" + std::to_string(GetLastError()));
-        // If mutex is missing, we might be reading before service started.
-        // We'll try to read anyway if the mapping exists (optimistic read),
-        // but likely the mapping is also missing.
+        // If mutex is missing in both namespaces, we might be reading before
+        // the service started. We'll try to read anyway if the mapping exists
+        // (optimistic read), but likely the mapping is also missing.
+    }
+
+    std::wstring mapName;
+    if (!chosenPrefix.empty()) {
+        mapName = chosenPrefix + wKey;
+    } else {
+        // Preserve existing behavior: if we could not find any mutex, fall back
+        // to Global\ only as a best-effort read.
+        mapName = std::wstring(L"Global\\") + wKey;
     }
 
     HANDLE hMap = OpenFileMappingW(FILE_MAP_READ, FALSE, mapName.c_str());
@@ -127,12 +188,30 @@ std::string SharedMemoryHelper::ReadSharedMemory(const std::string& name) {
 }
 
 void SharedMemoryHelper::SignalEvent(const std::string& name) {
-    std::wstring wEventName = L"Global\\" + ConvertStringToWString(name) + L"_Event";
-    HANDLE hEvent = OpenEventW(EVENT_MODIFY_STATE, FALSE, wEventName.c_str());
-    if (hEvent) {
-        SetEvent(hEvent);
-        CloseHandle(hEvent);
-    } else {
-         DebugLog("SignalEvent: Event not found (" + name + ").");
+    const std::wstring wKey = ConvertStringToWString(name);
+
+    const wchar_t* kNamespaces[]     = { L"Global\\", L"Local\\" };
+    const char*    kNamespaceNames[] = { "Global",    "Local"    };
+
+    for (int i = 0; i < 2; ++i) {
+        std::wstring wEventName = std::wstring(kNamespaces[i]) + wKey + L"_Event";
+        HANDLE hEvent = OpenEventW(EVENT_MODIFY_STATE, FALSE, wEventName.c_str());
+        if (hEvent) {
+            SetEvent(hEvent);
+            CloseHandle(hEvent);
+            return;
+        } else {
+            DWORD err = GetLastError();
+            if (err != ERROR_FILE_NOT_FOUND) {
+                DebugLog(
+                    std::string("SignalEvent: Event not found (") + name +
+                    ") ns=" + kNamespaceNames[i] +
+                    " err=" + std::to_string(err));
+                // For non-FNF we stop trying other namespaces, as this likely indicates a real error.
+                return;
+            }
+        }
     }
+
+    DebugLog("SignalEvent: Event not found (" + name + ") in both Global and Local namespaces.");
 }
