@@ -295,6 +295,14 @@ if(WIN32)
         message(WARNING "windeployqt not found. Qt DLLs will need to be copied manually.")
         message(STATUS "Please add Qt bin directory to PATH or copy Qt DLLs manually.")
     endif()
+    
+    # background_picture_1.pngを実行ファイルと同じフォルダにコピー
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/background_picture_1.png"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/background_picture_1.png"
+        COMMENT "Copying background_picture_1.png to output directory"
+    )
 endif()
 
 # Visual Studioのフィルター設定（オプション）
