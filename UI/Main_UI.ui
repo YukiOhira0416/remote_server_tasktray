@@ -680,8 +680,8 @@ QCheckBox::indicator:checked:hover {
      <widget class="QPushButton" name="pushButton_2">
       <property name="geometry">
        <rect>
-        <x>1095</x>
-        <y>440</y>
+        <x>1060</x>
+        <y>340</y>
         <width>121</width>
         <height>41</height>
        </rect>

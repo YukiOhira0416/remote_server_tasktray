@@ -430,7 +430,7 @@ public:
         label_14->setGeometry(QRect(151, 21, 821, 61));
         pushButton_2 = new QPushButton(tab_1);
         pushButton_2->setObjectName("pushButton_2");
-        pushButton_2->setGeometry(QRect(1095, 440, 121, 41));
+        pushButton_2->setGeometry(QRect(1060, 340, 121, 41));
         label_10 = new QLabel(tab_1);
         label_10->setObjectName("label_10");
         label_10->setGeometry(QRect(40, 18, 191, 41));
