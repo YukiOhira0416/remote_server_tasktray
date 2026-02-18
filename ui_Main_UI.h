@@ -349,6 +349,7 @@ public:
 "    border: 3px solid #cccccc;\n"
 "    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);\n"
 "}"));
+        checkBox_1->setChecked(true);
         label_12 = new QLabel(groupBox_1);
         label_12->setObjectName("label_12");
         label_12->setGeometry(QRect(151, 17, 821, 61));
@@ -445,7 +446,7 @@ public:
 
         retranslateUi(MainWindow);
 
-        tabWidget->setCurrentIndex(1);
+        tabWidget->setCurrentIndex(0);
 
 
         QMetaObject::connectSlotsByName(MainWindow);
