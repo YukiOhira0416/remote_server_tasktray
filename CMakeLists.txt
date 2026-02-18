@@ -135,6 +135,7 @@ set(SOURCES
     Utility.cpp
     OverlayManager.cpp
     DisplaySyncServer.cpp
+    ModeSyncServer.cpp
 )
 
 # TaskTrayApp.cppファイルに対してAutoUICを無効化
@@ -154,6 +155,7 @@ set(HEADERS
     Resource.h
     OverlayManager.h
     DisplaySyncServer.h
+    ModeSyncServer.h
 )
 
 # リソースファイル

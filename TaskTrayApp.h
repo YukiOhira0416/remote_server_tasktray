@@ -9,6 +9,7 @@
 #include "Globals.h"
 
 class DisplaySyncServer;
+class ModeSyncServer;
 class TaskTrayApp {
 public:
     TaskTrayApp(HINSTANCE hInstance);
@@ -22,6 +23,9 @@ public:
     void SelectDisplay(int displayIndex);
     void GetDisplayStateForSync(int& outDisplayCount, int& outActiveDisplayIndex);
     void SetCaptureMode(int mode);
+    void UpdateOptimizedPlanFromUi(int plan);
+    void UpdateOptimizedPlanFromNetwork(int plan);
+    int  GetOptimizedPlanForSync() const;
     void ShowControlPanel();
     bool RefreshDisplayList();
     bool Cleanup();
@@ -29,11 +33,14 @@ public:
 
 private:
     void UpdateTrayTooltip(const std::wstring& text);
+    void ApplyOptimizedPlanToUi(int plan);
 
     HINSTANCE hInstance;
     HWND hwnd;
     NOTIFYICONDATA nid;
     DisplaySyncServer* displaySyncServer;
+    ModeSyncServer* modeSyncServer;
+    std::atomic<int> optimizedPlan{ 1 };
     std::atomic<bool> running = true;
     std::atomic<bool> cleaned = false;
 };

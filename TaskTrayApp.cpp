@@ -14,6 +14,7 @@
 #include "Globals.h"
 #include "OverlayManager.h"
 #include "DisplaySyncServer.h"
+#include "ModeSyncServer.h"
 #include <fstream>
 #include <ctime>
 #include <iomanip>
@@ -29,11 +30,13 @@
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QWidget>
 #include <QtWidgets/QCheckBox>
+#include <QtWidgets/QPushButton>
 #include <QtCore/QMetaObject>
 #include <QtCore/QObject>
 #include <QtCore/Qt>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QEvent>
+#include <QtCore/QSignalBlocker>
 #include "ui_Main_UI.h"
 
 
@@ -49,6 +52,7 @@ constexpr int MAX_DISPLAY_MENU_ITEMS = 4; // Max items in "Select Display" subme
 std::atomic<bool> g_controlPanelRunning{ false };
 std::atomic<QMainWindow*> g_controlPanelWindow{ nullptr };
 std::atomic<std::uint64_t> g_controlPanelToken{ 0 };
+std::atomic<TaskTrayApp*> g_taskTrayAppInstance{ nullptr };
 
 class ControlPanelCloseFilter : public QObject {
 public:
@@ -81,9 +85,17 @@ std::filesystem::path GetExecutablePath() {
     return std::filesystem::path(buffer).parent_path();
 }
 
-TaskTrayApp::TaskTrayApp(HINSTANCE hInst) : hInstance(hInst), hwnd(NULL), running(true) {
+TaskTrayApp::TaskTrayApp(HINSTANCE hInst)
+    : hInstance(hInst)
+    , hwnd(NULL)
+    , displaySyncServer(nullptr)
+    , modeSyncServer(nullptr)
+    , optimizedPlan(1)
+    , running(true)
+    , cleaned(false)
+{
     ZeroMemory(&nid, sizeof(nid));
-    displaySyncServer = nullptr;
+    g_taskTrayAppInstance.store(this);
 }
 
 
@@ -165,6 +177,13 @@ bool TaskTrayApp::Initialize() {
         }
     }
 
+    if (!modeSyncServer) {
+        modeSyncServer = new ModeSyncServer(this);
+        if (!modeSyncServer->Start(8600)) {
+            DebugLog("TaskTrayApp::Initialize: Failed to start ModeSyncServer on port 8600.");
+        }
+    }
+
     return true;
 }
 
@@ -200,6 +219,14 @@ bool TaskTrayApp::Cleanup() {
         delete displaySyncServer;
         displaySyncServer = nullptr;
     }
+
+    if (modeSyncServer) {
+        modeSyncServer->Stop();
+        delete modeSyncServer;
+        modeSyncServer = nullptr;
+    }
+
+    g_taskTrayAppInstance.store(nullptr);
 
     // 共有メモリとイベントを削除
     // SharedMemoryHelper is now Open-only and client-side doesn't delete anything.
@@ -422,6 +449,89 @@ void TaskTrayApp::SetCaptureMode(int mode) {
     }
 }
 
+void TaskTrayApp::UpdateOptimizedPlanFromUi(int plan) {
+    if (plan < 1 || plan > 3) {
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: invalid plan: " + std::to_string(plan));
+        return;
+    }
+
+    optimizedPlan.store(plan);
+
+    SharedMemoryHelper sharedMemoryHelper;
+    std::string value = std::to_string(plan);
+    DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: Setting OptimizedPlan to " + value);
+    if (!sharedMemoryHelper.WriteSharedMemory("OptimizedPlan", value)) {
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: Failed to write OptimizedPlan (service not ready?).");
+    }
+
+    if (modeSyncServer) {
+        modeSyncServer->BroadcastCurrentMode(plan);
+    }
+}
+
+void TaskTrayApp::UpdateOptimizedPlanFromNetwork(int plan) {
+    if (plan < 1 || plan > 3) {
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: invalid plan: " + std::to_string(plan));
+        return;
+    }
+
+    optimizedPlan.store(plan);
+
+    SharedMemoryHelper sharedMemoryHelper;
+    std::string value = std::to_string(plan);
+    DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: Setting OptimizedPlan to " + value + " (from network)");
+    if (!sharedMemoryHelper.WriteSharedMemory("OptimizedPlan", value)) {
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: Failed to write OptimizedPlan (service not ready?).");
+    }
+
+    ApplyOptimizedPlanToUi(plan);
+
+    if (modeSyncServer) {
+        modeSyncServer->BroadcastCurrentMode(plan);
+    }
+}
+
+int TaskTrayApp::GetOptimizedPlanForSync() const {
+    int plan = optimizedPlan.load();
+    if (plan < 1 || plan > 3) {
+        plan = 1;
+    }
+    return plan;
+}
+
+void TaskTrayApp::ApplyOptimizedPlanToUi(int plan) {
+    if (plan < 1 || plan > 3) {
+        return;
+    }
+
+    QMainWindow* window = g_controlPanelWindow.load();
+    if (!window) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(
+        window,
+        [window, plan]() {
+            QCheckBox* cb1 = window->findChild<QCheckBox*>("checkBox_1");
+            QCheckBox* cb2 = window->findChild<QCheckBox*>("checkBox_2");
+            QCheckBox* cb3 = window->findChild<QCheckBox*>("checkBox_3");
+
+            if (!cb1 || !cb2 || !cb3) {
+                return;
+            }
+
+            QSignalBlocker blocker1(cb1);
+            QSignalBlocker blocker2(cb2);
+            QSignalBlocker blocker3(cb3);
+
+            cb1->setChecked(plan == 1);
+            cb2->setChecked(plan == 2);
+            cb3->setChecked(plan == 3);
+        },
+        Qt::QueuedConnection);
+}
+
+
 void TaskTrayApp::ShowControlPanel() {
     if (auto window = g_controlPanelWindow.load()) {
         const bool isRunning = g_controlPanelRunning.load();
@@ -472,6 +582,17 @@ void TaskTrayApp::ShowControlPanel() {
         QCheckBox* cb1 = ui.checkBox_1;
         QCheckBox* cb2 = ui.checkBox_2;
         QCheckBox* cb3 = ui.checkBox_3;
+        QPushButton* saveButton = ui.pushButton_2;
+
+        // 初期状態として、現在の OptimizedPlan に合わせてチェックを設定
+        if (TaskTrayApp* appInst = g_taskTrayAppInstance.load()) {
+            int plan = appInst->GetOptimizedPlanForSync();
+            if (cb1 && cb2 && cb3) {
+                cb1->setChecked(plan == 1);
+                cb2->setChecked(plan == 2);
+                cb3->setChecked(plan == 3);
+            }
+        }
 
         QObject::connect(cb1, &QCheckBox::toggled, [cb2, cb3](bool checked) {
             if (checked) {
@@ -493,6 +614,37 @@ void TaskTrayApp::ShowControlPanel() {
                 cb2->setChecked(false);
             }
         });
+
+        if (saveButton) {
+            QObject::connect(saveButton, &QPushButton::clicked, [cb1, cb2, cb3]() {
+                int plan = 0;
+                if (cb1 && cb1->isChecked()) {
+                    plan = 1;
+                }
+                else if (cb2 && cb2->isChecked()) {
+                    plan = 2;
+                }
+                else if (cb3 && cb3->isChecked()) {
+                    plan = 3;
+                }
+
+                if (plan == 0) {
+                    DebugLog("ControlPanel: Save clicked but no speed mode selected.");
+                    return;
+                }
+
+                TaskTrayApp* appInst = g_taskTrayAppInstance.load();
+                if (!appInst) {
+                    DebugLog("ControlPanel: g_taskTrayAppInstance is null on Save.");
+                    return;
+                }
+
+                appInst->UpdateOptimizedPlanFromUi(plan);
+            });
+        }
+        else {
+            DebugLog("ControlPanel: Save button (pushButton_2) not found.");
+        }
 
         QMainWindow* rawWindow = mainWindow.get();
 

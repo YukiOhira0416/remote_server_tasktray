@@ -476,7 +476,7 @@ public:
         groupBox_2->setTitle(QCoreApplication::translate("MainWindow", "Medium-speed", nullptr));
         checkBox_2->setText(QString());
         label_13->setText(QCoreApplication::translate("MainWindow", "Network speed: 150-250 Mbps / Max resolution of client display area: 2560\303\2271440", nullptr));
-        groupBox_3->setTitle(QCoreApplication::translate("MainWindow", "Higt-speed", nullptr));
+        groupBox_3->setTitle(QCoreApplication::translate("MainWindow", "High-speed", nullptr));
         checkBox_3->setText(QString());
         label_14->setText(QCoreApplication::translate("MainWindow", "Network speed: 300+ Mbps / Max resolution of client display area: 3840\303\2272160", nullptr));
         pushButton_2->setText(QCoreApplication::translate("MainWindow", "Save", nullptr));
