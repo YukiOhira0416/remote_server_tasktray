@@ -456,6 +456,7 @@ void TaskTrayApp::UpdateOptimizedPlanFromUi(int plan) {
     }
 
     optimizedPlan.store(plan);
+    DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: updating plan to " + std::to_string(plan));
 
     SharedMemoryHelper sharedMemoryHelper;
     std::string value = std::to_string(plan);
@@ -463,11 +464,24 @@ void TaskTrayApp::UpdateOptimizedPlanFromUi(int plan) {
     if (!sharedMemoryHelper.WriteSharedMemory("OptimizedPlan", value)) {
         DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: Failed to write OptimizedPlan (service not ready?).");
     }
+    else {
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: OptimizedPlan written to shared memory.");
+    }
 
+    // サーバー側と他のクライアントへ現在のモードを通知
     if (modeSyncServer) {
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: broadcasting mode to clients.");
         modeSyncServer->BroadcastCurrentMode(plan);
     }
+    else {
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: modeSyncServer is null; cannot broadcast.");
+    }
+
+    // 既に UI 上のチェックボックスは Save を押した時点で反映済みだが、
+    // 他経路から呼ばれた場合にも確実に UI が現在の plan を示すようにしておく。
+    ApplyOptimizedPlanToUi(plan);
 }
+
 
 void TaskTrayApp::UpdateOptimizedPlanFromNetwork(int plan) {
     if (plan < 1 || plan > 3) {
@@ -476,6 +490,7 @@ void TaskTrayApp::UpdateOptimizedPlanFromNetwork(int plan) {
     }
 
     optimizedPlan.store(plan);
+    DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: updating plan to " + std::to_string(plan));
 
     SharedMemoryHelper sharedMemoryHelper;
     std::string value = std::to_string(plan);
@@ -483,13 +498,22 @@ void TaskTrayApp::UpdateOptimizedPlanFromNetwork(int plan) {
     if (!sharedMemoryHelper.WriteSharedMemory("OptimizedPlan", value)) {
         DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: Failed to write OptimizedPlan (service not ready?).");
     }
+    else {
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: OptimizedPlan written to shared memory (from network).");
+    }
 
+    // ネットワークから受信した plan をタスクトレイの Qt コントロールパネルに反映
     ApplyOptimizedPlanToUi(plan);
 
     if (modeSyncServer) {
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: broadcasting mode to other clients.");
         modeSyncServer->BroadcastCurrentMode(plan);
     }
+    else {
+        DebugLog("TaskTrayApp::UpdateOptimizedPlanFromNetwork: modeSyncServer is null; cannot broadcast.");
+    }
 }
+
 
 int TaskTrayApp::GetOptimizedPlanForSync() const {
     int plan = optimizedPlan.load();
