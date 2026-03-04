@@ -19,7 +19,6 @@
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QStatusBar>
 #include <QtWidgets/QTabWidget>
-#include <QtWidgets/QTextBrowser>
 #include <QtWidgets/QTextEdit>
 #include <QtWidgets/QWidget>
 
@@ -45,11 +44,7 @@ public:
     QPushButton *pushButton_1;
     QLabel *label_05;
     QLabel *label_06;
-    QLabel *label_08;
-    QTextBrowser *textBrowser_0;
-    QLabel *label_09;
     QLabel *label_07;
-    QTextBrowser *textBrowser_1;
     QWidget *tab_1;
     QGroupBox *groupBox_1;
     QCheckBox *checkBox_1;
@@ -62,15 +57,14 @@ public:
     QLabel *label_14;
     QPushButton *pushButton_2;
     QLabel *label_10;
-    QWidget *tab_2;
     QStatusBar *statusbar;
 
     void setupUi(QMainWindow *MainWindow)
     {
         if (MainWindow->objectName().isEmpty())
             MainWindow->setObjectName("MainWindow");
-        MainWindow->resize(1280, 720);
-        MainWindow->setMinimumSize(QSize(1280, 720));
+        MainWindow->resize(1280, 527);
+        MainWindow->setMinimumSize(QSize(1280, 527));
         MainWindow->setMaximumSize(QSize(1280, 720));
         actionOpen_Ctrl_N = new QAction(MainWindow);
         actionOpen_Ctrl_N->setObjectName("actionOpen_Ctrl_N");
@@ -78,7 +72,7 @@ public:
         centralwidget->setObjectName("centralwidget");
         tabWidget = new QTabWidget(centralwidget);
         tabWidget->setObjectName("tabWidget");
-        tabWidget->setGeometry(QRect(20, 155, 1241, 526));
+        tabWidget->setGeometry(QRect(20, 30, 1241, 461));
         tabWidget->setStyleSheet(QString::fromUtf8("QTabWidget::pane {\n"
 "	border: none;\n"
 "}\n"
@@ -195,23 +189,9 @@ public:
         label_06 = new QLabel(tab_0);
         label_06->setObjectName("label_06");
         label_06->setGeometry(QRect(769, 29, 71, 21));
-        label_08 = new QLabel(tab_0);
-        label_08->setObjectName("label_08");
-        label_08->setGeometry(QRect(40, 270, 191, 41));
-        label_08->setStyleSheet(QString::fromUtf8(""));
-        textBrowser_0 = new QTextBrowser(tab_0);
-        textBrowser_0->setObjectName("textBrowser_0");
-        textBrowser_0->setGeometry(QRect(40, 311, 471, 151));
-        label_09 = new QLabel(tab_0);
-        label_09->setObjectName("label_09");
-        label_09->setGeometry(QRect(560, 260, 231, 41));
-        label_09->setStyleSheet(QString::fromUtf8(""));
         label_07 = new QLabel(tab_0);
         label_07->setObjectName("label_07");
         label_07->setGeometry(QRect(860, 30, 141, 21));
-        textBrowser_1 = new QTextBrowser(tab_0);
-        textBrowser_1->setObjectName("textBrowser_1");
-        textBrowser_1->setGeometry(QRect(560, 310, 631, 151));
         tabWidget->addTab(tab_0, QString());
         tab_1 = new QWidget();
         tab_1->setObjectName("tab_1");
@@ -238,42 +218,39 @@ public:
 "}"));
         groupBox_1 = new QGroupBox(tab_1);
         groupBox_1->setObjectName("groupBox_1");
-        groupBox_1->setGeometry(QRect(26, 74, 1001, 95));
+        groupBox_1->setGeometry(QRect(26, 74, 621, 95));
         checkBox_1 = new QCheckBox(groupBox_1);
         checkBox_1->setObjectName("checkBox_1");
         checkBox_1->setGeometry(QRect(89, 41, 40, 30));
         checkBox_1->setChecked(true);
         label_12 = new QLabel(groupBox_1);
         label_12->setObjectName("label_12");
-        label_12->setGeometry(QRect(151, 17, 821, 61));
+        label_12->setGeometry(QRect(151, 26, 421, 61));
         groupBox_2 = new QGroupBox(tab_1);
         groupBox_2->setObjectName("groupBox_2");
-        groupBox_2->setGeometry(QRect(26, 180, 1001, 95));
+        groupBox_2->setGeometry(QRect(26, 180, 621, 95));
         checkBox_2 = new QCheckBox(groupBox_2);
         checkBox_2->setObjectName("checkBox_2");
         checkBox_2->setGeometry(QRect(89, 42, 40, 30));
         label_13 = new QLabel(groupBox_2);
         label_13->setObjectName("label_13");
-        label_13->setGeometry(QRect(151, 22, 821, 61));
+        label_13->setGeometry(QRect(151, 27, 461, 61));
         groupBox_3 = new QGroupBox(tab_1);
         groupBox_3->setObjectName("groupBox_3");
-        groupBox_3->setGeometry(QRect(26, 286, 1001, 95));
+        groupBox_3->setGeometry(QRect(26, 286, 621, 95));
         checkBox_3 = new QCheckBox(groupBox_3);
         checkBox_3->setObjectName("checkBox_3");
         checkBox_3->setGeometry(QRect(89, 41, 40, 30));
         label_14 = new QLabel(groupBox_3);
         label_14->setObjectName("label_14");
-        label_14->setGeometry(QRect(151, 21, 821, 61));
+        label_14->setGeometry(QRect(151, 25, 451, 61));
         pushButton_2 = new QPushButton(tab_1);
         pushButton_2->setObjectName("pushButton_2");
-        pushButton_2->setGeometry(QRect(1060, 340, 121, 41));
+        pushButton_2->setGeometry(QRect(690, 340, 121, 41));
         label_10 = new QLabel(tab_1);
         label_10->setObjectName("label_10");
         label_10->setGeometry(QRect(40, 18, 191, 41));
         tabWidget->addTab(tab_1, QString());
-        tab_2 = new QWidget();
-        tab_2->setObjectName("tab_2");
-        tabWidget->addTab(tab_2, QString());
         MainWindow->setCentralWidget(centralwidget);
         statusbar = new QStatusBar(MainWindow);
         statusbar->setObjectName("statusbar");
@@ -300,23 +277,20 @@ public:
         pushButton_1->setText(QCoreApplication::translate("MainWindow", "Activate", nullptr));
         label_05->setText(QCoreApplication::translate("MainWindow", "Status", nullptr));
         label_06->setText(QCoreApplication::translate("MainWindow", "Unactivated", nullptr));
-        label_08->setText(QCoreApplication::translate("MainWindow", "Announcement", nullptr));
-        label_09->setText(QCoreApplication::translate("MainWindow", "System Infomation", nullptr));
         label_07->setText(QCoreApplication::translate("MainWindow", "Expaired On 31/08/20XX", nullptr));
         tabWidget->setTabText(tabWidget->indexOf(tab_0), QCoreApplication::translate("MainWindow", "System", nullptr));
         groupBox_1->setTitle(QCoreApplication::translate("MainWindow", "Low-speed", nullptr));
         checkBox_1->setText(QString());
-        label_12->setText(QCoreApplication::translate("MainWindow", "Network speed: ~100 Mbps / Max resolution of client display area: 1920\303\2271080", nullptr));
+        label_12->setText(QCoreApplication::translate("MainWindow", "For network speed: ~100 Mbps /  The video quality of client display area: Low", nullptr));
         groupBox_2->setTitle(QCoreApplication::translate("MainWindow", "Medium-speed", nullptr));
         checkBox_2->setText(QString());
-        label_13->setText(QCoreApplication::translate("MainWindow", "Network speed: 150-250 Mbps / Max resolution of client display area: 2560\303\2271440", nullptr));
+        label_13->setText(QCoreApplication::translate("MainWindow", "For network speed: 150-250 Mbps / The video quality of client display area: Medium", nullptr));
         groupBox_3->setTitle(QCoreApplication::translate("MainWindow", "High-speed", nullptr));
         checkBox_3->setText(QString());
-        label_14->setText(QCoreApplication::translate("MainWindow", "Network speed: 300+ Mbps / Max resolution of client display area: 3840\303\2272160", nullptr));
+        label_14->setText(QCoreApplication::translate("MainWindow", "For network speed: 300+ Mbps / The video quality of client display area: High", nullptr));
         pushButton_2->setText(QCoreApplication::translate("MainWindow", "Save", nullptr));
-        label_10->setText(QCoreApplication::translate("MainWindow", "Mode Selection", nullptr));
+        label_10->setText(QCoreApplication::translate("MainWindow", "Select Mode", nullptr));
         tabWidget->setTabText(tabWidget->indexOf(tab_1), QCoreApplication::translate("MainWindow", "Settings", nullptr));
-        tabWidget->setTabText(tabWidget->indexOf(tab_2), QCoreApplication::translate("MainWindow", "Donation", nullptr));
     } // retranslateUi
 
 };

@@ -7,13 +7,13 @@
     <x>0</x>
     <y>0</y>
     <width>1280</width>
-    <height>720</height>
+    <height>527</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
     <width>1280</width>
-    <height>720</height>
+    <height>527</height>
    </size>
   </property>
   <property name="maximumSize">
@@ -30,9 +30,9 @@
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>155</y>
+      <y>30</y>
       <width>1241</width>
-      <height>526</height>
+      <height>461</height>
      </rect>
     </property>
     <property name="styleSheet">
@@ -281,48 +281,6 @@ QTabBar::tab {
        <string>Unactivated</string>
       </property>
      </widget>
-     <widget class="QLabel" name="label_08">
-      <property name="geometry">
-       <rect>
-        <x>40</x>
-        <y>270</y>
-        <width>191</width>
-        <height>41</height>
-       </rect>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
-      <property name="text">
-       <string>Announcement</string>
-      </property>
-     </widget>
-     <widget class="QTextBrowser" name="textBrowser_0">
-      <property name="geometry">
-       <rect>
-        <x>40</x>
-        <y>311</y>
-        <width>471</width>
-        <height>151</height>
-       </rect>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_09">
-      <property name="geometry">
-       <rect>
-        <x>560</x>
-        <y>260</y>
-        <width>231</width>
-        <height>41</height>
-       </rect>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
-      <property name="text">
-       <string>System Infomation</string>
-      </property>
-     </widget>
      <widget class="QLabel" name="label_07">
       <property name="geometry">
        <rect>
@@ -334,16 +292,6 @@ QTabBar::tab {
       </property>
       <property name="text">
        <string>Expaired On 31/08/20XX</string>
-      </property>
-     </widget>
-     <widget class="QTextBrowser" name="textBrowser_1">
-      <property name="geometry">
-       <rect>
-        <x>560</x>
-        <y>310</y>
-        <width>631</width>
-        <height>151</height>
-       </rect>
       </property>
      </widget>
     </widget>
@@ -379,7 +327,7 @@ QPushButton {
        <rect>
         <x>26</x>
         <y>74</y>
-        <width>1001</width>
+        <width>621</width>
         <height>95</height>
        </rect>
       </property>
@@ -406,13 +354,13 @@ QPushButton {
        <property name="geometry">
         <rect>
          <x>151</x>
-         <y>17</y>
-         <width>821</width>
+         <y>26</y>
+         <width>421</width>
          <height>61</height>
         </rect>
        </property>
        <property name="text">
-        <string>Network speed: ~100 Mbps / Max resolution of client display area: 1920×1080</string>
+        <string>For network speed: ~100 Mbps /  The video quality of client display area: Low</string>
        </property>
       </widget>
      </widget>
@@ -421,7 +369,7 @@ QPushButton {
        <rect>
         <x>26</x>
         <y>180</y>
-        <width>1001</width>
+        <width>621</width>
         <height>95</height>
        </rect>
       </property>
@@ -445,13 +393,13 @@ QPushButton {
        <property name="geometry">
         <rect>
          <x>151</x>
-         <y>22</y>
-         <width>821</width>
+         <y>27</y>
+         <width>461</width>
          <height>61</height>
         </rect>
        </property>
        <property name="text">
-        <string>Network speed: 150-250 Mbps / Max resolution of client display area: 2560×1440</string>
+        <string>For network speed: 150-250 Mbps / The video quality of client display area: Medium</string>
        </property>
       </widget>
      </widget>
@@ -460,7 +408,7 @@ QPushButton {
        <rect>
         <x>26</x>
         <y>286</y>
-        <width>1001</width>
+        <width>621</width>
         <height>95</height>
        </rect>
       </property>
@@ -484,20 +432,20 @@ QPushButton {
        <property name="geometry">
         <rect>
          <x>151</x>
-         <y>21</y>
-         <width>821</width>
+         <y>25</y>
+         <width>451</width>
          <height>61</height>
         </rect>
        </property>
        <property name="text">
-        <string>Network speed: 300+ Mbps / Max resolution of client display area: 3840×2160</string>
+        <string>For network speed: 300+ Mbps / The video quality of client display area: High</string>
        </property>
       </widget>
      </widget>
      <widget class="QPushButton" name="pushButton_2">
       <property name="geometry">
        <rect>
-        <x>1060</x>
+        <x>690</x>
         <y>340</y>
         <width>121</width>
         <height>41</height>
@@ -517,14 +465,9 @@ QPushButton {
        </rect>
       </property>
       <property name="text">
-       <string>Mode Selection</string>
+       <string>Select Mode</string>
       </property>
      </widget>
-    </widget>
-    <widget class="QWidget" name="tab_2">
-     <attribute name="title">
-      <string>Donation</string>
-     </attribute>
     </widget>
    </widget>
   </widget>
