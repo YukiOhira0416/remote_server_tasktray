@@ -26,31 +26,6 @@
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <property name="styleSheet">
-    <string notr="true">QWidget {
-	background-color: #0a0a0a;
-
-}</string>
-   </property>
-   <widget class="QLabel" name="label_background">
-    <property name="geometry">
-     <rect>
-      <x>0</x>
-      <y>0</y>
-      <width>1280</width>
-      <height>691</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string/>
-    </property>
-    <property name="pixmap">
-     <pixmap>background_picture_1.png</pixmap>
-    </property>
-    <property name="scaledContents">
-     <bool>true</bool>
-    </property>
-   </widget>
    <widget class="QTabWidget" name="tabWidget">
     <property name="geometry">
      <rect>
@@ -62,35 +37,14 @@
     </property>
     <property name="styleSheet">
      <string notr="true">QTabWidget::pane {
-	background: transparent;
 	border: none;
 }
-
-QTabWidget QWidget {
-	background: transparent;
-}
-
 
 QTabBar::tab {
 	min-width: 300px;
 	min-height: 35px;
 	padding: 5px;
-	background: #3a3a3a;
-	color: white;
-	border: 1px solid #555555;
 	border-bottom: none;
-
-}
-
-QTabBar::tab:selected {
-	background: #0a0a0a;
-	color: white;
-	border: 2px solid white;
-}
-
-QTabBar::tab:hover {
-	background: #2a2a2a;
-
 }</string>
     </property>
     <property name="currentIndex">
@@ -98,72 +52,42 @@ QTabBar::tab:hover {
     </property>
     <widget class="QWidget" name="tab_0">
      <property name="styleSheet">
-      <string notr="true">QLabel {
-	color: white;
-}
-
-QPushButton {
+      <string notr="true">QPushButton {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
-	background-color: #2a2a2a;
-	color: white;
-	border: 1px solid white;
 	padding: 5px;
-}
-
-QPushButton:hover {
-	background-color: #3a3a3a;
-}
-
-QTextEdit {
-	background-color: #1a1a1a;
-	color: white;
-	border: 1px solid white;
-}
-
-QTextBrowser {
-	background-color: #1a1a1a;
-	color: white;
-	border: 1px solid white;
 }
 
 #label_00 {
 	font-family: &quot;Arial&quot;;
 	font-size: 25px;
 	font-weight: bold;
-	color: white;
 }
 
 #label_01 {
 	font-family: &quot;Arial&quot;;
 	font-size: 25px;
 	font-weight: bold;
-	color: white;
 }
 
 #label_02 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
-	color: white;
 }
 
 #label_03 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
-	color: white;
 }
 
 #label_04 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
-	color: white;
 }
-
 
 #label_05 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
-	color: white;
 }
 
 #label_06 {
@@ -182,14 +106,12 @@ QTextBrowser {
 	font-family: &quot;Arial&quot;;
 	font-size: 25px;
 	font-weight: bold;
-	color: white;
 }
 
 #label_09 {
 	font-family: &quot;Arial&quot;;
 	font-size: 25px;
 	font-weight: bold;
-	color: white;
 }
 </string>
      </property>
@@ -427,41 +349,26 @@ QTextBrowser {
     </widget>
     <widget class="QWidget" name="tab_1">
      <property name="styleSheet">
-      <string notr="true">QLabel {
-	color: white;
-}
-
-QGroupBox {
-	color: white;
-	border: 2px solid white;
+      <string notr="true">QGroupBox {
+	border: 2px solid;
 	border-radius: 5px;
 	margin-top: 10px;
-	background-color: #0a0a0a;
 }
 
 QGroupBox::title {
-	color: white;
 	subcontrol-origin: margin;
 	left: 10px;
 	padding: 0 5px 0 5px;
 }
 
 QPushButton {
-	background-color: #2a2a2a;
-	color: white;
-	border: 1px solid white;
 	padding: 5px;
-}
-
-QPushButton:hover {
-	background-color: #3a3a3a;
 }
 
 #label_10 {
 	font-family: &quot;Arial&quot;;
 	font-size: 25px;
 	font-weight: bold;
-	color: white;
 }</string>
      </property>
      <attribute name="title">
@@ -487,37 +394,6 @@ QPushButton:hover {
          <width>40</width>
          <height>30</height>
         </rect>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">QCheckBox::indicator {
-    width: 24px;
-    height: 24px;
-    border: 3px solid white;
-    border-radius: 2px;
-    background-color: #0a0a0a;
-}
-
-QCheckBox::indicator:hover {
-    border: 3px solid #cccccc;
-    background-color: #1a1a1a;
-}
-
-QCheckBox::indicator:unchecked {
-    background-color: #0a0a0a;
-    border: 3px solid white;
-}
-
-QCheckBox::indicator:checked {
-    background-color: #0a0a0a;
-    border: 3px solid white;
-    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
-}
-
-QCheckBox::indicator:checked:hover {
-    background-color: #1a1a1a;
-    border: 3px solid #cccccc;
-    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
-}</string>
        </property>
        <property name="text">
         <string/>
@@ -561,37 +437,6 @@ QCheckBox::indicator:checked:hover {
          <height>30</height>
         </rect>
        </property>
-       <property name="styleSheet">
-        <string notr="true">QCheckBox::indicator {
-    width: 24px;
-    height: 24px;
-    border: 3px solid white;
-    border-radius: 2px;
-    background-color: #0a0a0a;
-}
-
-QCheckBox::indicator:hover {
-    border: 3px solid #cccccc;
-    background-color: #1a1a1a;
-}
-
-QCheckBox::indicator:unchecked {
-    background-color: #0a0a0a;
-    border: 3px solid white;
-}
-
-QCheckBox::indicator:checked {
-    background-color: #0a0a0a;
-    border: 3px solid white;
-    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
-}
-
-QCheckBox::indicator:checked:hover {
-    background-color: #1a1a1a;
-    border: 3px solid #cccccc;
-    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
-}</string>
-       </property>
        <property name="text">
         <string/>
        </property>
@@ -630,37 +475,6 @@ QCheckBox::indicator:checked:hover {
          <width>40</width>
          <height>30</height>
         </rect>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">QCheckBox::indicator {
-    width: 24px;
-    height: 24px;
-    border: 3px solid white;
-    border-radius: 2px;
-    background-color: #0a0a0a;
-}
-
-QCheckBox::indicator:hover {
-    border: 3px solid #cccccc;
-    background-color: #1a1a1a;
-}
-
-QCheckBox::indicator:unchecked {
-    background-color: #0a0a0a;
-    border: 3px solid white;
-}
-
-QCheckBox::indicator:checked {
-    background-color: #0a0a0a;
-    border: 3px solid white;
-    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
-}
-
-QCheckBox::indicator:checked:hover {
-    background-color: #1a1a1a;
-    border: 3px solid #cccccc;
-    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
-}</string>
        </property>
        <property name="text">
         <string/>

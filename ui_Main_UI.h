@@ -30,7 +30,6 @@ class Ui_MainWindow
 public:
     QAction *actionOpen_Ctrl_N;
     QWidget *centralwidget;
-    QLabel *label_background;
     QTabWidget *tabWidget;
     QWidget *tab_0;
     QLabel *label_00;
@@ -77,118 +76,57 @@ public:
         actionOpen_Ctrl_N->setObjectName("actionOpen_Ctrl_N");
         centralwidget = new QWidget(MainWindow);
         centralwidget->setObjectName("centralwidget");
-        centralwidget->setStyleSheet(QString::fromUtf8("QWidget {\n"
-"	background-color: #0a0a0a;\n"
-"\n"
-"}"));
-        label_background = new QLabel(centralwidget);
-        label_background->setObjectName("label_background");
-        label_background->setGeometry(QRect(0, 0, 1280, 691));
-        label_background->setPixmap(QPixmap(QString::fromUtf8("background_picture_1.png")));
-        label_background->setScaledContents(true);
         tabWidget = new QTabWidget(centralwidget);
         tabWidget->setObjectName("tabWidget");
         tabWidget->setGeometry(QRect(20, 155, 1241, 526));
         tabWidget->setStyleSheet(QString::fromUtf8("QTabWidget::pane {\n"
-"	background: transparent;\n"
 "	border: none;\n"
 "}\n"
-"\n"
-"QTabWidget QWidget {\n"
-"	background: transparent;\n"
-"}\n"
-"\n"
 "\n"
 "QTabBar::tab {\n"
 "	min-width: 300px;\n"
 "	min-height: 35px;\n"
 "	padding: 5px;\n"
-"	background: #3a3a3a;\n"
-"	color: white;\n"
-"	border: 1px solid #555555;\n"
 "	border-bottom: none;\n"
-"\n"
-"}\n"
-"\n"
-"QTabBar::tab:selected {\n"
-"	background: #0a0a0a;\n"
-"	color: white;\n"
-"	border: 2px solid white;\n"
-"}\n"
-"\n"
-"QTabBar::tab:hover {\n"
-"	background: #2a2a2a;\n"
-"\n"
 "}"));
         tab_0 = new QWidget();
         tab_0->setObjectName("tab_0");
-        tab_0->setStyleSheet(QString::fromUtf8("QLabel {\n"
-"	color: white;\n"
-"}\n"
-"\n"
-"QPushButton {\n"
+        tab_0->setStyleSheet(QString::fromUtf8("QPushButton {\n"
 "	font-family: \"Segoe UI\";\n"
 "	font-size: 12px;\n"
-"	background-color: #2a2a2a;\n"
-"	color: white;\n"
-"	border: 1px solid white;\n"
 "	padding: 5px;\n"
-"}\n"
-"\n"
-"QPushButton:hover {\n"
-"	background-color: #3a3a3a;\n"
-"}\n"
-"\n"
-"QTextEdit {\n"
-"	background-color: #1a1a1a;\n"
-"	color: white;\n"
-"	border: 1px solid white;\n"
-"}\n"
-"\n"
-"QTextBrowser {\n"
-"	background-color: #1a1a1a;\n"
-"	color: white;\n"
-"	border: 1px solid white;\n"
 "}\n"
 "\n"
 "#label_00 {\n"
 "	font-family: \"Arial\";\n"
 "	font-size: 25px;\n"
 "	font-weight: bold;\n"
-"	color: white;\n"
 "}\n"
 "\n"
 "#label_01 {\n"
 "	font-family: \"Arial\";\n"
 "	font-size: 25px;\n"
 "	font-weight: bold;\n"
-"	color: white;\n"
 "}\n"
 "\n"
 "#label_02 {\n"
 "	font-family: \"Segoe UI\";\n"
 "	font-size: 12px;\n"
-"	color: white;\n"
 "}\n"
 "\n"
 "#label_03 {\n"
 "	font-family: \"Segoe UI\";\n"
 "	font-size: 12px;\n"
-"	color: white;\n"
 "}\n"
 "\n"
 "#label_04 {\n"
 "	font-family: \"Segoe UI\";\n"
 "	font-size: 12px;\n"
-"	"
-                        "color: white;\n"
 "}\n"
-"\n"
 "\n"
 "#label_05 {\n"
 "	font-family: \"Segoe UI\";\n"
 "	font-size: 12px;\n"
-"	color: white;\n"
 "}\n"
 "\n"
 "#label_06 {\n"
@@ -207,15 +145,14 @@ public:
 "	font-family: \"Arial\";\n"
 "	font-size: 25px;\n"
 "	font-weight: bold;\n"
-"	color: white;\n"
 "}\n"
 "\n"
 "#label_09 {\n"
 "	font-family: \"Arial\";\n"
 "	font-size: 25px;\n"
 "	font-weight: bold;\n"
-"	color: white;\n"
-"}\n"
+""
+                        "}\n"
 ""));
         label_00 = new QLabel(tab_0);
         label_00->setObjectName("label_00");
@@ -278,41 +215,26 @@ public:
         tabWidget->addTab(tab_0, QString());
         tab_1 = new QWidget();
         tab_1->setObjectName("tab_1");
-        tab_1->setStyleSheet(QString::fromUtf8("QLabel {\n"
-"	color: white;\n"
-"}\n"
-"\n"
-"QGroupBox {\n"
-"	color: white;\n"
-"	border: 2px solid white;\n"
+        tab_1->setStyleSheet(QString::fromUtf8("QGroupBox {\n"
+"	border: 2px solid;\n"
 "	border-radius: 5px;\n"
 "	margin-top: 10px;\n"
-"	background-color: #0a0a0a;\n"
 "}\n"
 "\n"
 "QGroupBox::title {\n"
-"	color: white;\n"
 "	subcontrol-origin: margin;\n"
 "	left: 10px;\n"
 "	padding: 0 5px 0 5px;\n"
 "}\n"
 "\n"
 "QPushButton {\n"
-"	background-color: #2a2a2a;\n"
-"	color: white;\n"
-"	border: 1px solid white;\n"
 "	padding: 5px;\n"
-"}\n"
-"\n"
-"QPushButton:hover {\n"
-"	background-color: #3a3a3a;\n"
 "}\n"
 "\n"
 "#label_10 {\n"
 "	font-family: \"Arial\";\n"
 "	font-size: 25px;\n"
 "	font-weight: bold;\n"
-"	color: white;\n"
 "}"));
         groupBox_1 = new QGroupBox(tab_1);
         groupBox_1->setObjectName("groupBox_1");
@@ -320,35 +242,6 @@ public:
         checkBox_1 = new QCheckBox(groupBox_1);
         checkBox_1->setObjectName("checkBox_1");
         checkBox_1->setGeometry(QRect(89, 41, 40, 30));
-        checkBox_1->setStyleSheet(QString::fromUtf8("QCheckBox::indicator {\n"
-"    width: 24px;\n"
-"    height: 24px;\n"
-"    border: 3px solid white;\n"
-"    border-radius: 2px;\n"
-"    background-color: #0a0a0a;\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:hover {\n"
-"    border: 3px solid #cccccc;\n"
-"    background-color: #1a1a1a;\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:unchecked {\n"
-"    background-color: #0a0a0a;\n"
-"    border: 3px solid white;\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:checked {\n"
-"    background-color: #0a0a0a;\n"
-"    border: 3px solid white;\n"
-"    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:checked:hover {\n"
-"    background-color: #1a1a1a;\n"
-"    border: 3px solid #cccccc;\n"
-"    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);\n"
-"}"));
         checkBox_1->setChecked(true);
         label_12 = new QLabel(groupBox_1);
         label_12->setObjectName("label_12");
@@ -359,35 +252,6 @@ public:
         checkBox_2 = new QCheckBox(groupBox_2);
         checkBox_2->setObjectName("checkBox_2");
         checkBox_2->setGeometry(QRect(89, 42, 40, 30));
-        checkBox_2->setStyleSheet(QString::fromUtf8("QCheckBox::indicator {\n"
-"    width: 24px;\n"
-"    height: 24px;\n"
-"    border: 3px solid white;\n"
-"    border-radius: 2px;\n"
-"    background-color: #0a0a0a;\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:hover {\n"
-"    border: 3px solid #cccccc;\n"
-"    background-color: #1a1a1a;\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:unchecked {\n"
-"    background-color: #0a0a0a;\n"
-"    border: 3px solid white;\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:checked {\n"
-"    background-color: #0a0a0a;\n"
-"    border: 3px solid white;\n"
-"    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:checked:hover {\n"
-"    background-color: #1a1a1a;\n"
-"    border: 3px solid #cccccc;\n"
-"    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);\n"
-"}"));
         label_13 = new QLabel(groupBox_2);
         label_13->setObjectName("label_13");
         label_13->setGeometry(QRect(151, 22, 821, 61));
@@ -397,35 +261,6 @@ public:
         checkBox_3 = new QCheckBox(groupBox_3);
         checkBox_3->setObjectName("checkBox_3");
         checkBox_3->setGeometry(QRect(89, 41, 40, 30));
-        checkBox_3->setStyleSheet(QString::fromUtf8("QCheckBox::indicator {\n"
-"    width: 24px;\n"
-"    height: 24px;\n"
-"    border: 3px solid white;\n"
-"    border-radius: 2px;\n"
-"    background-color: #0a0a0a;\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:hover {\n"
-"    border: 3px solid #cccccc;\n"
-"    background-color: #1a1a1a;\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:unchecked {\n"
-"    background-color: #0a0a0a;\n"
-"    border: 3px solid white;\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:checked {\n"
-"    background-color: #0a0a0a;\n"
-"    border: 3px solid white;\n"
-"    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);\n"
-"}\n"
-"\n"
-"QCheckBox::indicator:checked:hover {\n"
-"    background-color: #1a1a1a;\n"
-"    border: 3px solid #cccccc;\n"
-"    image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);\n"
-"}"));
         label_14 = new QLabel(groupBox_3);
         label_14->setObjectName("label_14");
         label_14->setGeometry(QRect(151, 21, 821, 61));
@@ -456,7 +291,6 @@ public:
     {
         MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "MainWindow", nullptr));
         actionOpen_Ctrl_N->setText(QCoreApplication::translate("MainWindow", "Open            Ctrl + N", nullptr));
-        label_background->setText(QString());
         label_00->setText(QCoreApplication::translate("MainWindow", "Server Name", nullptr));
         pushButton_0->setText(QCoreApplication::translate("MainWindow", "Save", nullptr));
         label_01->setText(QCoreApplication::translate("MainWindow", "Activation", nullptr));
