@@ -172,15 +172,15 @@ bool TaskTrayApp::Initialize() {
 
     if (!displaySyncServer) {
         displaySyncServer = new DisplaySyncServer(this);
-        if (!displaySyncServer->Start(8500)) {
-            DebugLog("TaskTrayApp::Initialize: Failed to start DisplaySyncServer on port 8500.");
+        if (!displaySyncServer->Start(8000)) {
+            DebugLog("TaskTrayApp::Initialize: Failed to start DisplaySyncServer on port 8000.");
         }
     }
 
     if (!modeSyncServer) {
         modeSyncServer = new ModeSyncServer(this);
-        if (!modeSyncServer->Start(8600)) {
-            DebugLog("TaskTrayApp::Initialize: Failed to start ModeSyncServer on port 8600.");
+        if (!modeSyncServer->Start(8100)) {
+            DebugLog("TaskTrayApp::Initialize: Failed to start ModeSyncServer on port 8100.");
         }
     }
 

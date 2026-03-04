@@ -24,7 +24,7 @@ public:
     explicit DisplaySyncServer(TaskTrayApp* owner);
     ~DisplaySyncServer();
 
-    // Start listening on the given TCP port (e.g. 8500).
+    // Start listening on the given TCP port (e.g. 8000).
     // Returns true on success, false if the server is already running or initialization fails.
     bool Start(unsigned short port);
 
