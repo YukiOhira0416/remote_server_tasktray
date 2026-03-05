@@ -249,19 +249,6 @@ QTabBar::tab {
        </rect>
       </property>
      </widget>
-     <widget class="QPushButton" name="pushButton_1">
-      <property name="geometry">
-       <rect>
-        <x>1070</x>
-        <y>212</y>
-        <width>121</width>
-        <height>41</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Activate</string>
-      </property>
-     </widget>
      <widget class="QLabel" name="label_06">
       <property name="geometry">
        <rect>
@@ -286,6 +273,19 @@ QTabBar::tab {
       </property>
       <property name="text">
        <string>Expaired On 31/08/20XX</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_1">
+      <property name="geometry">
+       <rect>
+        <x>1080</x>
+        <y>220</y>
+        <width>111</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Activete</string>
       </property>
      </widget>
     </widget>
@@ -321,7 +321,7 @@ QPushButton {
        <rect>
         <x>26</x>
         <y>74</y>
-        <width>621</width>
+        <width>691</width>
         <height>95</height>
        </rect>
       </property>
@@ -349,7 +349,7 @@ QPushButton {
         <rect>
          <x>151</x>
          <y>26</y>
-         <width>421</width>
+         <width>511</width>
          <height>61</height>
         </rect>
        </property>
@@ -363,7 +363,7 @@ QPushButton {
        <rect>
         <x>26</x>
         <y>180</y>
-        <width>621</width>
+        <width>691</width>
         <height>95</height>
        </rect>
       </property>
@@ -388,7 +388,7 @@ QPushButton {
         <rect>
          <x>151</x>
          <y>27</y>
-         <width>461</width>
+         <width>521</width>
          <height>61</height>
         </rect>
        </property>
@@ -402,7 +402,7 @@ QPushButton {
        <rect>
         <x>26</x>
         <y>286</y>
-        <width>621</width>
+        <width>691</width>
         <height>95</height>
        </rect>
       </property>
@@ -427,7 +427,7 @@ QPushButton {
         <rect>
          <x>151</x>
          <y>25</y>
-         <width>451</width>
+         <width>501</width>
          <height>61</height>
         </rect>
        </property>
@@ -439,7 +439,7 @@ QPushButton {
      <widget class="QPushButton" name="pushButton_2">
       <property name="geometry">
        <rect>
-        <x>690</x>
+        <x>730</x>
         <y>340</y>
         <width>121</width>
         <height>41</height>

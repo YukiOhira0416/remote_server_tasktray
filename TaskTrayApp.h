@@ -6,6 +6,8 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 #include "Globals.h"
 
 class DisplaySyncServer;
@@ -35,6 +37,10 @@ private:
     void UpdateTrayTooltip(const std::wstring& text);
     void ApplyOptimizedPlanToUi(int plan);
 
+    void StartActivationPollThread();
+    void StopActivationPollThread();
+    void ActivationPollThreadProc();
+
     HINSTANCE hInstance;
     HWND hwnd;
     NOTIFYICONDATA nid;
@@ -43,6 +49,12 @@ private:
     std::atomic<int> optimizedPlan{ 1 };
     std::atomic<bool> running = true;
     std::atomic<bool> cleaned = false;
+
+    // Background activation / validity polling must run even when the Qt control panel is closed.
+    std::thread activationPollThread;
+    std::atomic<bool> activationPollRunning{ false };
+    std::mutex activationPollMutex;
+    std::condition_variable activationPollCv;
 };
 
 #endif // TASKTRAYAPP_H

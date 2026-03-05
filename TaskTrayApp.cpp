@@ -1,3 +1,6 @@
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
 #include "TaskTrayApp.h"
 #include "StringConversion.h"
 #include "Utility.h"
@@ -10,11 +13,13 @@
 #include <vector>
 #include <string>
 #include <CommCtrl.h>
+#include <winsvc.h>
 #include "DebugLog.h"
 #include "Globals.h"
 #include "OverlayManager.h"
 #include "DisplaySyncServer.h"
 #include "ModeSyncServer.h"
+#include "DeviceKeyCrypto.h"
 #include <fstream>
 #include <ctime>
 #include <iomanip>
@@ -37,7 +42,16 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QEvent>
 #include <QtCore/QSignalBlocker>
+#include <QtCore/QTimer>
 #include "ui_Main_UI.h"
+
+#include <wincrypt.h>
+#include <winhttp.h>
+#include <iphlpapi.h>
+
+#pragma comment(lib, "crypt32.lib")
+#pragma comment(lib, "winhttp.lib")
+#pragma comment(lib, "iphlpapi.lib")
 
 
 namespace {
@@ -72,6 +86,523 @@ protected:
         return QObject::eventFilter(watched, event);
     }
 };
+
+struct ServerActivationConfig {
+    std::string serverName;
+    std::string userEmail;        // UserID (email)
+    std::string password;
+    std::string activationCode;
+    std::string machineId;
+    std::string lanIp;
+    bool activated = false;
+};
+
+static std::filesystem::path GetRoamingDir(const std::wstring& subDir) {
+    wchar_t* appdata = nullptr;
+    size_t len = 0;
+    _wdupenv_s(&appdata, &len, L"APPDATA");
+    std::filesystem::path base = appdata ? std::filesystem::path(appdata) : std::filesystem::path();
+    if (appdata) free(appdata);
+    return base / L"HayateKomorebi" / subDir;
+}
+
+static std::filesystem::path GetServerConfigPath() {
+    return GetRoamingDir(L"Server") / L"Server"; // File A: no extension
+}
+
+static std::string Trim(const std::string& s) {
+    size_t b = 0;
+    while (b < s.size() && (s[b] == ' ' || s[b] == '\t' || s[b] == '\r' || s[b] == '\n')) b++;
+    size_t e = s.size();
+    while (e > b && (s[e - 1] == ' ' || s[e - 1] == '\t' || s[e - 1] == '\r' || s[e - 1] == '\n')) e--;
+    return s.substr(b, e - b);
+}
+
+static std::string ExecCmdCapture(const std::string& cmd) {
+    std::string out;
+    FILE* pipe = _popen(cmd.c_str(), "r");
+    if (!pipe) return out;
+    char buf[256];
+    while (fgets(buf, sizeof(buf), pipe)) {
+        out.append(buf);
+    }
+    _pclose(pipe);
+    return out;
+}
+
+static std::string GetMachineId() {
+    // Best-effort: combine CPU ProcessorId and csproduct UUID.
+    // If either fails, fall back to UUID only.
+    std::string cpu = ExecCmdCapture("wmic cpu get ProcessorId /value 2>nul");
+    std::string uuid = ExecCmdCapture("wmic csproduct get UUID /value 2>nul");
+
+    auto extractVal = [](const std::string& text, const std::string& key) -> std::string {
+        auto pos = text.find(key + "=");
+        if (pos == std::string::npos) return "";
+        pos += key.size() + 1;
+        auto end = text.find_first_of("\r\n", pos);
+        if (end == std::string::npos) end = text.size();
+        return Trim(text.substr(pos, end - pos));
+    };
+
+    std::string cpuId = extractVal(cpu, "ProcessorId");
+    std::string sysUuid = extractVal(uuid, "UUID");
+    if (sysUuid.empty()) {
+        // Some WMIC outputs are table-like; try a simpler parse.
+        std::istringstream iss(uuid);
+        std::string line;
+        while (std::getline(iss, line)) {
+            line = Trim(line);
+            if (line.empty()) continue;
+            if (line.find("UUID") != std::string::npos) continue;
+            sysUuid = line;
+            break;
+        }
+    }
+    if (cpuId.empty()) cpuId = "UNKNOWNCPU";
+    if (sysUuid.empty()) sysUuid = "UNKNOWNUUID";
+    return cpuId + "-" + sysUuid;
+}
+
+static std::string GetLanIpv4() {
+    ULONG bufLen = 0;
+    GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, nullptr, &bufLen);
+    if (bufLen == 0) return "";
+    std::vector<unsigned char> buf(bufLen);
+    IP_ADAPTER_ADDRESSES* addrs = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data());
+    DWORD ret = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, addrs, &bufLen);
+    if (ret != NO_ERROR) return "";
+    for (auto* a = addrs; a; a = a->Next) {
+        if (a->OperStatus != IfOperStatusUp) continue;
+        for (auto* ua = a->FirstUnicastAddress; ua; ua = ua->Next) {
+            if (!ua->Address.lpSockaddr) continue;
+            if (ua->Address.lpSockaddr->sa_family != AF_INET) continue;
+            SOCKADDR_IN* sin = reinterpret_cast<SOCKADDR_IN*>(ua->Address.lpSockaddr);
+            char ip[INET_ADDRSTRLEN] = {0};
+            inet_ntop(AF_INET, &sin->sin_addr, ip, sizeof(ip));
+            std::string s(ip);
+            if (s.rfind("169.254.", 0) == 0) continue; // skip APIPA
+            if (s == "127.0.0.1") continue;
+            return s;
+        }
+    }
+    return "";
+}
+
+static bool DpapiEncrypt(const std::string& plain, const std::string& entropy, std::string& outCipher) {
+    DATA_BLOB inBlob{0};
+    inBlob.pbData = (BYTE*)plain.data();
+    inBlob.cbData = (DWORD)plain.size();
+
+    DATA_BLOB entBlob{0};
+    entBlob.pbData = (BYTE*)entropy.data();
+    entBlob.cbData = (DWORD)entropy.size();
+
+    DATA_BLOB outBlob{0};
+    if (!CryptProtectData(&inBlob, L"HayateKomorebi", &entBlob, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &outBlob)) {
+        return false;
+    }
+    outCipher.assign((char*)outBlob.pbData, (size_t)outBlob.cbData);
+    LocalFree(outBlob.pbData);
+    return true;
+}
+
+static bool DpapiDecrypt(const std::string& cipher, const std::string& entropy, std::string& outPlain) {
+    DATA_BLOB inBlob{0};
+    inBlob.pbData = (BYTE*)cipher.data();
+    inBlob.cbData = (DWORD)cipher.size();
+
+    DATA_BLOB entBlob{0};
+    entBlob.pbData = (BYTE*)entropy.data();
+    entBlob.cbData = (DWORD)entropy.size();
+
+    DATA_BLOB outBlob{0};
+    LPWSTR desc = nullptr;
+    if (!CryptUnprotectData(&inBlob, &desc, &entBlob, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &outBlob)) {
+        if (desc) LocalFree(desc);
+        return false;
+    }
+    if (desc) LocalFree(desc);
+    outPlain.assign((char*)outBlob.pbData, (size_t)outBlob.cbData);
+    LocalFree(outBlob.pbData);
+    return true;
+}
+
+static std::string SerializeConfig(const ServerActivationConfig& c) {
+    std::ostringstream oss;
+
+    // Always persist ServerName (required before activation is allowed).
+    oss << "ServerName=" << c.serverName << "\n";
+
+    // File minimization:
+    // If NOT activated and all secrets are cleared, keep only ServerName in the file.
+    const bool secretsEmpty =
+        c.userEmail.empty() &&
+        c.password.empty() &&
+        c.activationCode.empty() &&
+        c.machineId.empty() &&
+        c.lanIp.empty();
+
+    if (!c.activated && secretsEmpty) {
+        return oss.str();
+    }
+
+    if (!c.userEmail.empty())      oss << "UserEmail=" << c.userEmail << "\n";
+    if (!c.password.empty())       oss << "Password=" << c.password << "\n";
+    if (!c.activationCode.empty()) oss << "ActivationCode=" << c.activationCode << "\n";
+    if (!c.machineId.empty())      oss << "MachineId=" << c.machineId << "\n";
+    if (!c.lanIp.empty())          oss << "LanIp=" << c.lanIp << "\n";
+
+    // Keep an explicit Activated field when secrets exist (or activated).
+    oss << "Activated=" << (c.activated ? "1" : "0") << "\n";
+    return oss.str();
+}
+
+static ServerActivationConfig ParseConfig(const std::string& text) {
+    ServerActivationConfig c;
+    std::istringstream iss(text);
+    std::string line;
+    while (std::getline(iss, line)) {
+        line = Trim(line);
+        if (line.empty()) continue;
+        auto eq = line.find('=');
+        if (eq == std::string::npos) continue;
+        std::string k = line.substr(0, eq);
+        std::string v = line.substr(eq + 1);
+        if (k == "ServerName") c.serverName = v;
+        else if (k == "UserEmail") c.userEmail = v;
+        else if (k == "Password") c.password = v;
+        else if (k == "ActivationCode") c.activationCode = v;
+        else if (k == "MachineId") c.machineId = v;
+        else if (k == "LanIp") c.lanIp = v;
+        else if (k == "Activated") c.activated = (v == "1");
+    }
+    return c;
+}
+
+static bool LoadServerConfig(ServerActivationConfig& out) {
+    auto path = GetServerConfigPath();
+    if (!std::filesystem::exists(path)) {
+        return false;
+    }
+    std::ifstream ifs(path, std::ios::binary);
+    if (!ifs) return false;
+    std::string cipher((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+    if (cipher.empty()) return false;
+
+    // Decrypt using hardware-derived MachineId (do not depend on file contents).
+    std::string machineId = GetMachineId();
+    std::string plain;
+    if (!DpapiDecrypt(cipher, machineId, plain)) {
+        return false;
+    }
+
+    out = ParseConfig(plain);
+
+    // Ensure derived fields exist even when config file is minimized.
+    if (out.machineId.empty()) out.machineId = machineId;
+    if (out.lanIp.empty()) out.lanIp = GetLanIpv4();
+    return true;
+}
+
+static bool SaveServerConfig(const ServerActivationConfig& cfg) {
+    auto dir = GetRoamingDir(L"Server");
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    (void)ec;
+    auto path = GetServerConfigPath();
+
+    std::string plain = SerializeConfig(cfg);
+    std::string cipher;
+
+    // Encryption entropy is derived from hardware MachineId (CPU + motherboard UUID).
+    // This allows the config file to omit MachineId when minimized.
+    const std::string entropy = GetMachineId();
+    if (!DpapiEncrypt(plain, entropy, cipher)) {
+        return false;
+    }
+
+    std::ofstream ofs(path, std::ios::binary | std::ios::trunc);
+    if (!ofs) return false;
+    ofs.write(cipher.data(), (std::streamsize)cipher.size());
+    return ofs.good();
+}
+
+static std::wstring GetEnvW(const wchar_t* name, const std::wstring& def) {
+    wchar_t* val = nullptr;
+    size_t len = 0;
+    _wdupenv_s(&val, &len, name);
+    std::wstring out = (val && len) ? std::wstring(val) : def;
+    if (val) free(val);
+    return out;
+}
+
+static std::wstring ToW(const std::string& s) {
+    if (s.empty()) return L"";
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(), nullptr, 0);
+    if (wlen <= 0) return L"";
+    std::wstring ws(wlen, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(), ws.data(), wlen);
+    return ws;
+}
+
+static std::string FromW(const std::wstring& ws) {
+    if (ws.empty()) return "";
+    int len = WideCharToMultiByte(CP_UTF8, 0, ws.c_str(), (int)ws.size(), nullptr, 0, nullptr, nullptr);
+    if (len <= 0) return "";
+    std::string s(len, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, ws.c_str(), (int)ws.size(), s.data(), len, nullptr, nullptr);
+    return s;
+}
+
+static std::wstring GetServiceNameW() {
+    // Installer can override via env var.
+    return GetEnvW(L"HAYATEKOMOREBI_SERVICE_NAME", L"HayateKomorebiRemoteService");
+}
+
+static bool OpenServiceHandles(const std::wstring& serviceName, DWORD desiredAccess, SC_HANDLE& outScm, SC_HANDLE& outSvc) {
+    outScm = nullptr;
+    outSvc = nullptr;
+
+    SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    if (!scm) {
+        DebugLog("ServiceControl: OpenSCManager failed.");
+        return false;
+    }
+    SC_HANDLE svc = OpenServiceW(scm, serviceName.c_str(), desiredAccess);
+    if (!svc) {
+        DebugLog("ServiceControl: OpenService failed.");
+        CloseServiceHandle(scm);
+        return false;
+    }
+    outScm = scm;
+    outSvc = svc;
+    return true;
+}
+
+static bool SetServiceStartType(const std::wstring& serviceName, DWORD startType) {
+    SC_HANDLE scm = nullptr;
+    SC_HANDLE svc = nullptr;
+    if (!OpenServiceHandles(serviceName, SERVICE_CHANGE_CONFIG, scm, svc)) {
+        return false;
+    }
+
+    const BOOL ok = ChangeServiceConfigW(
+        svc,
+        SERVICE_NO_CHANGE,
+        startType,
+        SERVICE_NO_CHANGE,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr);
+
+    if (!ok) {
+        DebugLog("ServiceControl: ChangeServiceConfig failed.");
+    }
+    CloseServiceHandle(svc);
+    CloseServiceHandle(scm);
+    return ok == TRUE;
+}
+
+static bool StartServiceIfNeeded(const std::wstring& serviceName) {
+    SC_HANDLE scm = nullptr;
+    SC_HANDLE svc = nullptr;
+    if (!OpenServiceHandles(serviceName, SERVICE_QUERY_STATUS | SERVICE_START, scm, svc)) {
+        return false;
+    }
+
+    SERVICE_STATUS_PROCESS ssp{};
+    DWORD bytesNeeded = 0;
+    if (!QueryServiceStatusEx(svc, SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp, sizeof(ssp), &bytesNeeded)) {
+        DebugLog("ServiceControl: QueryServiceStatusEx failed.");
+        CloseServiceHandle(svc);
+        CloseServiceHandle(scm);
+        return false;
+    }
+
+    if (ssp.dwCurrentState == SERVICE_RUNNING) {
+        CloseServiceHandle(svc);
+        CloseServiceHandle(scm);
+        return true;
+    }
+
+    if (!StartServiceW(svc, 0, nullptr)) {
+        const DWORD err = GetLastError();
+        // If it's already starting, treat as success.
+        if (err != ERROR_SERVICE_ALREADY_RUNNING) {
+            DebugLog("ServiceControl: StartService failed.");
+            CloseServiceHandle(svc);
+            CloseServiceHandle(scm);
+            return false;
+        }
+    }
+
+    CloseServiceHandle(svc);
+    CloseServiceHandle(scm);
+    return true;
+}
+
+static bool StopServiceIfRunning(const std::wstring& serviceName) {
+    SC_HANDLE scm = nullptr;
+    SC_HANDLE svc = nullptr;
+    if (!OpenServiceHandles(serviceName, SERVICE_QUERY_STATUS | SERVICE_STOP, scm, svc)) {
+        return false;
+    }
+
+    SERVICE_STATUS_PROCESS ssp{};
+    DWORD bytesNeeded = 0;
+    if (!QueryServiceStatusEx(svc, SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp, sizeof(ssp), &bytesNeeded)) {
+        DebugLog("ServiceControl: QueryServiceStatusEx failed (stop).");
+        CloseServiceHandle(svc);
+        CloseServiceHandle(scm);
+        return false;
+    }
+
+    if (ssp.dwCurrentState == SERVICE_STOPPED) {
+        CloseServiceHandle(svc);
+        CloseServiceHandle(scm);
+        return true;
+    }
+
+    SERVICE_STATUS st{};
+    if (!ControlService(svc, SERVICE_CONTROL_STOP, &st)) {
+        const DWORD err = GetLastError();
+        // If already stopping, treat as success.
+        if (err != ERROR_SERVICE_NOT_ACTIVE) {
+            DebugLog("ServiceControl: ControlService(STOP) failed.");
+            CloseServiceHandle(svc);
+            CloseServiceHandle(scm);
+            return false;
+        }
+    }
+
+    CloseServiceHandle(svc);
+    CloseServiceHandle(scm);
+    return true;
+}
+
+static bool WinHttpPostJson(const std::wstring& baseUrl, const std::wstring& path, const std::string& jsonBody, std::string& outResponse) {
+    outResponse.clear();
+
+    URL_COMPONENTS uc;
+    ZeroMemory(&uc, sizeof(uc));
+    uc.dwStructSize = sizeof(uc);
+    uc.dwSchemeLength = (DWORD)-1;
+    uc.dwHostNameLength = (DWORD)-1;
+    uc.dwUrlPathLength = (DWORD)-1;
+    uc.dwExtraInfoLength = (DWORD)-1;
+
+    std::wstring url = baseUrl;
+    if (!WinHttpCrackUrl(url.c_str(), (DWORD)url.size(), 0, &uc)) {
+        return false;
+    }
+
+    std::wstring host(uc.lpszHostName, uc.dwHostNameLength);
+    INTERNET_PORT port = uc.nPort;
+    bool isHttps = (uc.nScheme == INTERNET_SCHEME_HTTPS);
+
+    HINTERNET hSession = WinHttpOpen(L"HayateKomorebi/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession) return false;
+    HINTERNET hConnect = WinHttpConnect(hSession, host.c_str(), port, 0);
+    if (!hConnect) { WinHttpCloseHandle(hSession); return false; }
+
+    DWORD flags = WINHTTP_FLAG_REFRESH;
+    if (isHttps) flags |= WINHTTP_FLAG_SECURE;
+
+    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", path.c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+    if (!hRequest) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return false; }
+
+    const wchar_t* hdrs = L"Content-Type: application/json\r\n";
+    BOOL b = WinHttpSendRequest(hRequest, hdrs, (DWORD)-1L, (LPVOID)jsonBody.data(), (DWORD)jsonBody.size(), (DWORD)jsonBody.size(), 0);
+    if (!b) { WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return false; }
+    b = WinHttpReceiveResponse(hRequest, nullptr);
+    if (!b) { WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return false; }
+
+    DWORD avail = 0;
+    do {
+        avail = 0;
+        if (!WinHttpQueryDataAvailable(hRequest, &avail)) break;
+        if (!avail) break;
+        std::string chunk(avail, '\0');
+        DWORD read = 0;
+        if (!WinHttpReadData(hRequest, chunk.data(), avail, &read)) break;
+        chunk.resize(read);
+        outResponse += chunk;
+    } while (avail > 0);
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+    return !outResponse.empty();
+}
+
+static std::string JsonEscape(const std::string& s) {
+    std::ostringstream oss;
+    for (char ch : s) {
+        switch (ch) {
+            case '\\': oss << "\\\\"; break;
+            case '"': oss << "\\\""; break;
+            case '\n': oss << "\\n"; break;
+            case '\r': oss << "\\r"; break;
+            case '\t': oss << "\\t"; break;
+            default:
+                if ((unsigned char)ch < 0x20) {
+                    oss << "\\u" << std::hex << std::setw(4) << std::setfill('0') << (int)(unsigned char)ch;
+                } else {
+                    oss << ch;
+                }
+        }
+    }
+    return oss.str();
+}
+
+static bool JsonExtractString(const std::string& json, const std::string& key, std::string& out) {
+    out.clear();
+    std::string pat = "\"" + key + "\"";
+    auto p = json.find(pat);
+    if (p == std::string::npos) return false;
+    p = json.find(':', p + pat.size());
+    if (p == std::string::npos) return false;
+    p++;
+    while (p < json.size() && (json[p] == ' ' || json[p] == '\n' || json[p] == '\r' || json[p] == '\t')) p++;
+    if (p >= json.size() || json[p] != '"') return false;
+    p++;
+    std::ostringstream oss;
+    while (p < json.size()) {
+        char c = json[p++];
+        if (c == '"') {
+            out = oss.str();
+            return true;
+        }
+        if (c == '\\' && p < json.size()) {
+            char e = json[p++];
+            switch (e) {
+                case '"': oss << '"'; break;
+                case '\\': oss << '\\'; break;
+                case 'n': oss << '\n'; break;
+                case 'r': oss << '\r'; break;
+                case 't': oss << '\t'; break;
+                default: oss << e; break;
+            }
+        } else {
+            oss << c;
+        }
+    }
+    return false;
+}
+
+static void ClearActivationSecrets(ServerActivationConfig& cfg) {
+    cfg.userEmail.clear();
+    cfg.password.clear();
+    cfg.activationCode.clear();
+    cfg.lanIp.clear();
+    cfg.machineId.clear();
+    cfg.activated = false;
+}
 }
 
 
@@ -100,30 +631,30 @@ TaskTrayApp::TaskTrayApp(HINSTANCE hInst)
 
 
 bool TaskTrayApp::Initialize() {
-    // 実行ファイルのパスを取得
+    // 実行ファイルのパスを取征E
     std::filesystem::path exePath = GetExecutablePath();
     std::filesystem::path logFilePath = exePath / "debuglog_tasktray.log";
 
-    // 既存のログファイルをバックアップする
+    // 既存�EログファイルをバチE��アチE�Eする
     if (std::filesystem::exists(logFilePath)) {
-        // 現在の日時を取得
+        // 現在の日時を取征E
         std::time_t t = std::time(nullptr);
         std::tm tm;
         localtime_s(&tm, &t);
 
-        // 日付文字列を作成
+        // 日付文字�Eを作�E
         std::ostringstream oss;
         oss << std::put_time(&tm, "%Y%m%d%H%M%S");
         std::string timestamp = oss.str();
 
-        // バックアップファイル名を作成
+        // バックアチE�Eファイル名を作�E
         std::string backupFileName = timestamp + "_debuglog_tasktray.log.back";
         std::filesystem::path backupFilePath = exePath / backupFileName;
 
-        // ファイルをリネーム
+        // ファイルをリネ�Eム
         std::filesystem::rename(logFilePath, backupFilePath);
 
-        // バックアップファイルの数を確認し、5つを超える場合は古いものから削除
+        // バックアチE�Eファイルの数を確認し、Eつを趁E��る場合�E古ぁE��のから削除
         std::vector<std::filesystem::path> backupFiles;
         for (const auto& entry : std::filesystem::directory_iterator(exePath)) {
             if (entry.is_regular_file()) {
@@ -136,17 +667,17 @@ bool TaskTrayApp::Initialize() {
             }
         }
 
-        // 日付順でソート（新しい順）
+        // 日付頁E��ソート（新しい頁E��E
         std::sort(backupFiles.begin(), backupFiles.end(), std::greater<std::filesystem::path>());
 
-        // 5つより多い場合、古いファイルを削除
+        // 5つより多い場合、古ぁE��ァイルを削除
         while (backupFiles.size() > 5) {
             std::filesystem::remove(backupFiles.back());
             backupFiles.pop_back();
         }
     }
 
-    // ここから既存のコード
+    // ここから既存�EコーチE
     WNDCLASS wc = { 0 };
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
@@ -164,7 +695,7 @@ bool TaskTrayApp::Initialize() {
 
     CreateTrayIcon();
 
-    // 初回ディスプレイ情報取得
+    // 初回チE��スプレイ惁E��取征E
     if (!RefreshDisplayList()) {
         DebugLog("Initialize: RefreshDisplayList failed (Service not ready?). Continue anyway.");
         // We do not abort here, as the service might start later.
@@ -184,6 +715,9 @@ bool TaskTrayApp::Initialize() {
         }
     }
 
+    // Start activation polling in background (must run even when the Qt control panel is closed).
+    StartActivationPollThread();
+
     return true;
 }
 
@@ -200,18 +734,129 @@ void TaskTrayApp::CreateTrayIcon() {
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
 
+void TaskTrayApp::StartActivationPollThread() {
+    if (activationPollRunning.exchange(true)) {
+        return;
+    }
+    activationPollThread = std::thread(&TaskTrayApp::ActivationPollThreadProc, this);
+}
+
+void TaskTrayApp::StopActivationPollThread() {
+    if (!activationPollRunning.exchange(false)) {
+        return;
+    }
+    activationPollCv.notify_all();
+    if (activationPollThread.joinable()) {
+        activationPollThread.join();
+    }
+}
+
+void TaskTrayApp::ActivationPollThreadProc() {
+    // Poll every 60 seconds.
+    // - If device missing / mismatched / expired / public key mismatch => clear secrets, require re-activate.
+    // - If valid => keep activated; update LAN IP.
+    while (activationPollRunning.load()) {
+        ServerActivationConfig cfg;
+        if (LoadServerConfig(cfg)) {
+            // If not configured yet (ServerName missing) => nothing to do.
+            if (!cfg.serverName.empty() &&
+                !cfg.userEmail.empty() &&
+                !cfg.password.empty() &&
+                !cfg.activationCode.empty() &&
+                !cfg.machineId.empty()) {
+
+                const std::wstring baseUrl = GetEnvW(L"HAYATEKOMOREBI_APP_URL", L"https://myapp.local");
+                std::string pollKeyPem;
+                (void)DeviceKeyCrypto::GetServerPublicKeyForDb(pollKeyPem);
+                std::string body = std::string("{")
+                    + "\"email\":\"" + JsonEscape(cfg.userEmail) + "\"," 
+                    + "\"password\":\"" + JsonEscape(cfg.password) + "\"," 
+                    + "\"activation_code\":\"" + JsonEscape(cfg.activationCode) + "\"," 
+                    + "\"role\":\"server\"," 
+                    + "\"machine_id\":\"" + JsonEscape(cfg.machineId) + "\"," 
+                    + "\"public_key_pem\":\"" + JsonEscape(pollKeyPem) + "\""
+                    + "}";
+
+                std::string resp;
+                if (WinHttpPostJson(baseUrl, L"/api/device_list.php", body, resp)) {
+                    const bool valid = (resp.find("\"valid\":true") != std::string::npos);
+
+                    if (!valid) {
+                        if (cfg.activated || !cfg.userEmail.empty() || !cfg.password.empty() || !cfg.activationCode.empty()) {
+                            DebugLog("ActivationPoll(Server BG): invalid -> clear secrets and revert service.");
+                        }
+                        cfg.activated = false;
+                        ClearActivationSecrets(cfg);
+                        SaveServerConfig(cfg);
+
+                        // Revert service to install state: demand start + stopped.
+                        const std::wstring svcName = GetServiceNameW();
+                        (void)StopServiceIfRunning(svcName);
+                        (void)SetServiceStartType(svcName, SERVICE_DEMAND_START);
+                    } else {
+                        // Became / remains valid.
+                        const bool wasActivated = cfg.activated;
+                        cfg.activated = true;
+
+                        // Ensure service is always running after activation.
+                        const std::wstring svcName = GetServiceNameW();
+                        (void)SetServiceStartType(svcName, SERVICE_AUTO_START);
+                        (void)StartServiceIfNeeded(svcName);
+
+                        // Update LAN IP if changed (best-effort)
+                        const std::string currentIp = GetLanIpv4();
+                        if (!currentIp.empty() && currentIp != cfg.lanIp) {
+                            cfg.lanIp = currentIp;
+                            SaveServerConfig(cfg);
+                            std::string upBody = std::string("{")
+                                + "\"email\":\"" + JsonEscape(cfg.userEmail) + "\"," 
+                                + "\"password\":\"" + JsonEscape(cfg.password) + "\"," 
+                                + "\"activation_code\":\"" + JsonEscape(cfg.activationCode) + "\"," 
+                                + "\"role\":\"server\"," 
+                                + "\"machine_id\":\"" + JsonEscape(cfg.machineId) + "\"," 
+                                + "\"device_name\":\"" + JsonEscape(cfg.serverName) + "\"," 
+                                + "\"lan_ip\":\"" + JsonEscape(cfg.lanIp) + "\""
+                                + "}";
+                            std::string upResp;
+                            WinHttpPostJson(baseUrl, L"/api/device_update_name.php", upBody, upResp);
+                        } else {
+                            SaveServerConfig(cfg);
+                        }
+
+                        if (!wasActivated) {
+                            DebugLog("ActivationPoll(Server BG): valid -> Activated.");
+                        }
+                    }
+                } else {
+                    DebugLog("ActivationPoll(Server BG): device_list POST failed.");
+                }
+            }
+        }
+
+        // Wait for next tick or stop.
+        std::unique_lock<std::mutex> lk(activationPollMutex);
+        activationPollCv.wait_for(lk, std::chrono::seconds(60), [this]() {
+            return !activationPollRunning.load();
+        });
+    }
+}
+
 bool TaskTrayApp::Cleanup() {
-    // 2回呼ばれても安全にする（Exitメニュー + WinMain後処理など）
+    // 2回呼ばれても安�Eにする�E�Exitメニュー + WinMain後�E琁E��ど�E�E
     if (cleaned.exchange(true)) {
         return true;
     }
+
+    // Stop background activation polling first.
+    StopActivationPollThread();
+
     // Clean up overlay windows
     OverlayManager::Instance().Cleanup();
 
     // タスクトレイアイコンを削除
     Shell_NotifyIcon(NIM_DELETE, &nid);
 
-    // スレッドの停止を指示
+    // スレチE��の停止を指示
     running = false;
 
     if (displaySyncServer) {
@@ -443,7 +1088,7 @@ void TaskTrayApp::SetCaptureMode(int mode) {
     std::string modeValue = std::to_string(mode);
     DebugLog("SetCaptureMode: Setting capture mode to " + modeValue);
     if (sharedMemoryHelper.WriteSharedMemory("Capture_Mode", modeValue)) {
-        // REBOOT とレジストリ反映はサービス側に集約する
+        // REBOOT とレジストリ反映はサービス側に雁E��E��めE
     } else {
         DebugLog("SetCaptureMode: Failed to write to shared memory (Service not ready?).");
     }
@@ -469,7 +1114,7 @@ void TaskTrayApp::UpdateOptimizedPlanFromUi(int plan) {
         DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: OptimizedPlan written to shared memory.");
     }
 
-    // サーバー側と他のクライアントへ現在のモードを通知
+    // サーバ�E側と他�Eクライアントへ現在のモードを通知
     if (modeSyncServer) {
         DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: broadcasting mode to clients.");
         modeSyncServer->BroadcastCurrentMode(plan);
@@ -478,8 +1123,8 @@ void TaskTrayApp::UpdateOptimizedPlanFromUi(int plan) {
         DebugLog("TaskTrayApp::UpdateOptimizedPlanFromUi: modeSyncServer is null; cannot broadcast.");
     }
 
-    // 既に UI 上のチェックボックスは Save を押した時点で反映済みだが、
-    // 他経路から呼ばれた場合にも確実に UI が現在の plan を示すようにしておく。
+    // 既に UI 上�EチェチE��ボックスは Save を押した時点で反映済みだが、E
+    // 他経路から呼ばれた場合にも確実に UI が現在の plan を示すよぁE��しておく、E
     ApplyOptimizedPlanToUi(plan);
 }
 
@@ -591,7 +1236,7 @@ void TaskTrayApp::ShowControlPanel() {
     DebugLog("ShowControlPanel: Launching control panel UI.");
 
     std::thread([token]() {
-        // 高DPIスケーリングを無効化（実ピクセルサイズで表示）
+        // 高DPIスケーリングを無効化（実ピクセルサイズで表示�E�E
         qputenv("QT_ENABLE_HIGHDPI_SCALING", "0");
         qputenv("QT_SCALE_FACTOR", "1");
         
@@ -604,13 +1249,174 @@ void TaskTrayApp::ShowControlPanel() {
         Ui_MainWindow ui;
         ui.setupUi(mainWindow.get());
 
-        // チェックボックスを排他的にする（1つだけ選択可能）
+        // -------- Activation / ServerName persistence --------
+        ServerActivationConfig cfg;
+        cfg.machineId = GetMachineId();
+        cfg.lanIp = GetLanIpv4();
+        LoadServerConfig(cfg); // best-effort (if decryption fails, keeps defaults)
+
+        auto refreshActivationUi = [&ui, &cfg]() {
+            if (ui.textEdit_0) {
+                ui.textEdit_0->setPlainText(QString::fromUtf8(cfg.serverName.c_str()));
+            }
+            if (ui.textEdit_1) ui.textEdit_1->setPlainText(QString::fromUtf8(cfg.userEmail.c_str()));
+            if (ui.textEdit_2) ui.textEdit_2->setPlainText(QString::fromUtf8(cfg.password.c_str()));
+            if (ui.textEdit_3) ui.textEdit_3->setPlainText(QString::fromUtf8(cfg.activationCode.c_str()));
+
+            const bool hasSavedServerName = !Trim(cfg.serverName).empty();
+            bool uiMatchesSaved = true;
+            if (ui.textEdit_0) {
+                const std::string uiName = Trim(ui.textEdit_0->toPlainText().toUtf8().toStdString());
+                uiMatchesSaved = (uiName == Trim(cfg.serverName));
+            }
+            const bool canActivate = hasSavedServerName && uiMatchesSaved;
+
+            // Activation tab gating: cannot switch to Settings until ServerName saved and activated
+            if (ui.tabWidget) {
+                // Settings tab index = 1
+                ui.tabWidget->setTabEnabled(1, cfg.activated);
+            }
+
+            if (ui.pushButton_1) ui.pushButton_1->setEnabled(canActivate);
+
+            if (ui.label_06) {
+                ui.label_06->setText(cfg.activated ? "Activated" : "Unactivated");
+            }
+            if (ui.label_07) {
+                ui.label_07->setText(cfg.activated ? "" : "");
+            }
+        };
+
+        refreshActivationUi();
+
+        if (ui.tabWidget) {
+            // Initial tab: System. After activation, default to Settings.
+            ui.tabWidget->setCurrentIndex(cfg.activated ? 1 : 0);
+            QObject::connect(ui.tabWidget, &QTabWidget::currentChanged, [&, oldIdx = 0](int idx) mutable {
+                // Prevent switching to Settings unless activated.
+                if (idx == 1 && !cfg.activated) {
+                    if (ui.tabWidget) {
+                        ui.tabWidget->blockSignals(true);
+                        ui.tabWidget->setCurrentIndex(0);
+                        ui.tabWidget->blockSignals(false);
+                    }
+                }
+                oldIdx = idx;
+            });
+        }
+
+        // Save ServerName button
+        if (ui.pushButton_0) {
+            QObject::connect(ui.pushButton_0, &QPushButton::clicked, [&, refreshActivationUi]() {
+                if (!ui.textEdit_0) return;
+                std::string newName = Trim(ui.textEdit_0->toPlainText().toUtf8().toStdString());
+                if (newName.empty()) {
+                    DebugLog("ControlPanel(System): ServerName is empty; refusing to save.");
+                    return;
+                }
+                bool changed = (newName != cfg.serverName);
+                cfg.serverName = newName;
+                cfg.machineId = GetMachineId();
+                cfg.lanIp = GetLanIpv4();
+
+                // If not activated yet, keep secrets empty.
+                if (!cfg.activated) {
+                    ClearActivationSecrets(cfg);
+                }
+
+                if (!SaveServerConfig(cfg)) {
+                    DebugLog("ControlPanel(System): Failed to save encrypted Server config.");
+                }
+
+                // If activated and name changed, update DB device_name (no reactivation)
+                if (cfg.activated && changed && !cfg.userEmail.empty() && !cfg.password.empty() && !cfg.activationCode.empty()) {
+                    std::wstring baseUrl = GetEnvW(L"HAYATEKOMOREBI_APP_URL", L"https://myapp.local");
+                    std::string body = std::string("{")
+                        + "\"email\":\"" + JsonEscape(cfg.userEmail) + "\"," 
+                        + "\"password\":\"" + JsonEscape(cfg.password) + "\"," 
+                        + "\"activation_code\":\"" + JsonEscape(cfg.activationCode) + "\"," 
+                        + "\"role\":\"server\"," 
+                        + "\"machine_id\":\"" + JsonEscape(cfg.machineId) + "\"," 
+                        + "\"device_name\":\"" + JsonEscape(cfg.serverName) + "\"," 
+                        + "\"lan_ip\":\"" + JsonEscape(cfg.lanIp) + "\"";
+                    body += "}";
+                    std::string resp;
+                    if (!WinHttpPostJson(baseUrl, L"/api/device_update_name.php", body, resp)) {
+                        DebugLog("ControlPanel(System): device_update_name POST failed.");
+                    }
+                }
+
+                refreshActivationUi();
+            });
+        }
+
+        // Activate button
+        if (ui.pushButton_1) {
+            QObject::connect(ui.pushButton_1, &QPushButton::clicked, [&, refreshActivationUi]() {
+                if (!ui.textEdit_0 || !ui.textEdit_1 || !ui.textEdit_2 || !ui.textEdit_3) return;
+
+                const std::string uiName = Trim(ui.textEdit_0->toPlainText().toUtf8().toStdString());
+                if (uiName.empty() || uiName != Trim(cfg.serverName)) {
+                    DebugLog("ControlPanel(System): Refusing to activate because ServerName is not saved (press Save first).");
+                    refreshActivationUi(); return;
+                }
+                cfg.userEmail  = Trim(ui.textEdit_1->toPlainText().toUtf8().toStdString());
+                cfg.password   = ui.textEdit_2->toPlainText().toUtf8().toStdString();
+                cfg.activationCode = Trim(ui.textEdit_3->toPlainText().toUtf8().toStdString());
+                cfg.machineId = GetMachineId();
+                cfg.lanIp = GetLanIpv4();
+
+                if (cfg.serverName.empty() || cfg.userEmail.empty() || cfg.password.empty() || cfg.activationCode.empty()) {
+                    DebugLog("ControlPanel(System): Missing fields for activation.");
+                    return;
+                }
+
+                // Save credentials immediately; activation status will be confirmed via polling.
+                cfg.activated = false;
+                if (!SaveServerConfig(cfg)) {
+                    DebugLog("ControlPanel(System): Failed to save encrypted Server config before activation.");
+                }
+
+                std::wstring baseUrl = GetEnvW(L"HAYATEKOMOREBI_APP_URL", L"https://myapp.local");
+                std::string publicKeyPem;
+                (void)DeviceKeyCrypto::GetServerPublicKeyForDb(publicKeyPem);
+                std::string body = std::string("{")
+                    + "\"email\":\"" + JsonEscape(cfg.userEmail) + "\"," 
+                    + "\"password\":\"" + JsonEscape(cfg.password) + "\"," 
+                    + "\"activation_code\":\"" + JsonEscape(cfg.activationCode) + "\"," 
+                    + "\"role\":\"server\"," 
+                    + "\"machine_id\":\"" + JsonEscape(cfg.machineId) + "\"," 
+                    + "\"device_name\":\"" + JsonEscape(cfg.serverName) + "\"," 
+                    + "\"lan_ip\":\"" + JsonEscape(cfg.lanIp) + "\"";
+                if (!publicKeyPem.empty()) body += ",\"public_key_pem\":\"" + JsonEscape(publicKeyPem) + "\"";
+                body += "}";
+
+                std::string resp;
+                if (!WinHttpPostJson(baseUrl, L"/api/app_activation_start.php", body, resp)) {
+                    DebugLog("ControlPanel(System): app_activation_start POST failed.");
+                    return;
+                }
+                std::string url;
+                if (!JsonExtractString(resp, "url", url) || url.empty()) {
+                    DebugLog("ControlPanel(System): Failed to parse activation URL.");
+                    return;
+                }
+                DebugLog(std::string("ControlPanel(System): Opening activation URL: ") + url);
+                ShellExecuteW(nullptr, L"open", ToW(url).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+
+                refreshActivationUi();
+            });
+        }
+
+        // NOTE: Activation validity polling is handled by TaskTrayApp's background thread.
+
+        // チェチE��ボックスを排他的にする�E�Eつだけ選択可能�E�E
         QCheckBox* cb1 = ui.checkBox_1;
         QCheckBox* cb2 = ui.checkBox_2;
         QCheckBox* cb3 = ui.checkBox_3;
         QPushButton* saveButton = ui.pushButton_2;
 
-        // 初期状態として、現在の OptimizedPlan に合わせてチェックを設定
+        // 初期状態として、現在の OptimizedPlan に合わせてチェチE��を設宁E
         if (TaskTrayApp* appInst = g_taskTrayAppInstance.load()) {
             int plan = appInst->GetOptimizedPlanForSync();
             if (cb1 && cb2 && cb3) {

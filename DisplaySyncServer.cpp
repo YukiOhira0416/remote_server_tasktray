@@ -4,6 +4,7 @@
 #include "DisplaySyncServer.h"
 #include "TaskTrayApp.h"
 #include "DebugLog.h"
+#include "SecureLineCrypto.h"
 
 #include <string>
 #include <sstream>
@@ -16,7 +17,21 @@ struct DisplaySyncServer::Impl
 {
     SOCKET listenSocket = INVALID_SOCKET;
     SOCKET clientSocket = INVALID_SOCKET;
+    hk_secureline::Session session;
 };
+
+static bool SendAll(SOCKET sock, const char* data, int len)
+{
+    int sentTotal = 0;
+    while (sentTotal < len) {
+        int sent = send(sock, data + sentTotal, len - sentTotal, 0);
+        if (sent == SOCKET_ERROR || sent == 0) {
+            return false;
+        }
+        sentTotal += sent;
+    }
+    return true;
+}
 
 DisplaySyncServer::DisplaySyncServer(TaskTrayApp* owner)
     : m_impl(new Impl()),
@@ -73,6 +88,7 @@ void DisplaySyncServer::Stop()
                 closesocket(m_impl->clientSocket);
                 m_impl->clientSocket = INVALID_SOCKET;
             }
+            hk_secureline::Clear(m_impl->session);
         }
     }
 
@@ -95,41 +111,38 @@ void DisplaySyncServer::BroadcastCurrentState()
     m_owner->GetDisplayStateForSync(displayCount, activeIndex);
 
     std::ostringstream oss;
-    oss << "STATE " << displayCount << " " << activeIndex << "\n";
+    oss << "STATE " << displayCount << " " << activeIndex;
 
-    // Copy the socket under lock; send outside the lock.
     SOCKET clientSocket = INVALID_SOCKET;
+    hk_secureline::Session sessionCopy;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_impl) {
             clientSocket = m_impl->clientSocket;
+            sessionCopy = m_impl->session;
         }
     }
 
-    if (clientSocket == INVALID_SOCKET) {
+    if (clientSocket == INVALID_SOCKET || !sessionCopy.active) {
         return;
     }
 
-    const std::string data = oss.str();
-    const char* buf = data.c_str();
-    int total = static_cast<int>(data.size());
+    std::string secLine;
+    if (!hk_secureline::EncryptLineToSec1(sessionCopy, oss.str(), secLine)) {
+        DebugLog("DisplaySyncServer::BroadcastCurrentState: EncryptLineToSec1 failed.");
+        return;
+    }
 
-    int sentTotal = 0;
-    while (sentTotal < total) {
-        int sent = send(clientSocket, buf + sentTotal, total - sentTotal, 0);
-        if (sent == SOCKET_ERROR || sent == 0) {
-            int err = WSAGetLastError();
-            DebugLog("DisplaySyncServer::BroadcastCurrentState: send failed: " + std::to_string(err));
+    if (!SendAll(clientSocket, secLine.c_str(), static_cast<int>(secLine.size()))) {
+        int err = WSAGetLastError();
+        DebugLog("DisplaySyncServer::BroadcastCurrentState: send failed: " + std::to_string(err));
 
-            // Close the socket on error.
-            std::lock_guard<std::mutex> lock(m_mutex);
-            if (m_impl && m_impl->clientSocket == clientSocket) {
-                closesocket(m_impl->clientSocket);
-                m_impl->clientSocket = INVALID_SOCKET;
-            }
-            return;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_impl && m_impl->clientSocket == clientSocket) {
+            closesocket(m_impl->clientSocket);
+            m_impl->clientSocket = INVALID_SOCKET;
+            hk_secureline::Clear(m_impl->session);
         }
-        sentTotal += sent;
     }
 }
 
@@ -167,7 +180,7 @@ void DisplaySyncServer::ServerThreadProc(unsigned short port)
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on all interfaces (e.g., 192.168.0.2)
+    addr.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on all interfaces
     addr.sin_port = htons(port);
 
     if (bind(listenSocket, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR) {
@@ -219,7 +232,6 @@ void DisplaySyncServer::ServerThreadProc(unsigned short port)
         }
 
         if (sel == 0) {
-            // timeout; loop again to check m_running
             continue;
         }
 
@@ -236,23 +248,51 @@ void DisplaySyncServer::ServerThreadProc(unsigned short port)
             continue;
         }
 
-        DebugLog("DisplaySyncServer: Client connected.");
+        DebugLog("DisplaySyncServer: Client connected (starting secure handshake).");
 
+        // Replace previous client.
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             if (m_impl) {
                 if (m_impl->clientSocket != INVALID_SOCKET) {
                     closesocket(m_impl->clientSocket);
+                    m_impl->clientSocket = INVALID_SOCKET;
                 }
+                hk_secureline::Clear(m_impl->session);
                 m_impl->clientSocket = clientSocket;
             }
         }
 
-        // Send initial state to the new client.
+        // Secure handshake (HELLO1/WELCOME1).
+        std::string recvBuffer;
+        hk_secureline::Session session;
+        if (!hk_secureline::ServerHandshake(clientSocket, recvBuffer, session, 5000)) {
+            DebugLog("DisplaySyncServer: secure handshake failed; closing client.");
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                if (m_impl && m_impl->clientSocket == clientSocket) {
+                    closesocket(m_impl->clientSocket);
+                    m_impl->clientSocket = INVALID_SOCKET;
+                    hk_secureline::Clear(m_impl->session);
+                }
+            }
+            closesocket(clientSocket);
+            continue;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (m_impl && m_impl->clientSocket == clientSocket) {
+                m_impl->session = session;
+            }
+        }
+
+        DebugLog("DisplaySyncServer: secure handshake complete.");
+
+        // Send initial state.
         BroadcastCurrentState();
 
         // Receive loop for this client.
-        std::string recvBuffer;
         char buffer[512];
 
         while (m_running.load()) {
@@ -272,61 +312,72 @@ void DisplaySyncServer::ServerThreadProc(unsigned short port)
             for (;;) {
                 std::size_t pos = recvBuffer.find('\n');
                 if (pos == std::string::npos) {
-                    // Incomplete line; keep it for the next recv.
                     break;
                 }
 
                 std::string line = recvBuffer.substr(0, pos);
                 recvBuffer.erase(0, pos + 1);
 
-                // Trim trailing '\r' if present.
                 if (!line.empty() && line.back() == '\r') {
                     line.pop_back();
                 }
 
-                if (!line.empty()) {
-                    std::istringstream iss(line);
-                    std::string command;
-                    iss >> command;
+                if (line.empty()) {
+                    continue;
+                }
 
-                    if (command == "SELECT") {
-                        int index = -1;
-                        if (iss >> index) {
-                            if (index >= 0 && index < 4) {
-                                DebugLog("DisplaySyncServer: Received SELECT command. index=" + std::to_string(index));
-                                if (m_owner) {
-                                    m_owner->SelectDisplay(index);
-                                    // Notify clients of the new state.
-                                    BroadcastCurrentState();
-                                }
-                            }
-                            else {
-                                DebugLog("DisplaySyncServer: SELECT index out of range: " + std::to_string(index));
+                std::string plain;
+                if (!hk_secureline::DecryptSec1ToLine(session, line, plain)) {
+                    DebugLog("DisplaySyncServer: invalid SEC1 line; closing client.");
+                    goto client_done;
+                }
+
+                if (plain == "DISCONNECT") {
+                    DebugLog("DisplaySyncServer: received DISCONNECT.");
+                    goto client_done;
+                }
+
+                std::istringstream iss(plain);
+                std::string command;
+                iss >> command;
+
+                if (command == "SELECT") {
+                    int index = -1;
+                    if (iss >> index) {
+                        if (index >= 0 && index < 4) {
+                            DebugLog("DisplaySyncServer: Received SELECT command. index=" + std::to_string(index));
+                            if (m_owner) {
+                                m_owner->SelectDisplay(index);
+                                BroadcastCurrentState();
                             }
                         }
                         else {
-                            DebugLog("DisplaySyncServer: Failed to parse SELECT command: \"" + line + "\"");
+                            DebugLog("DisplaySyncServer: SELECT index out of range: " + std::to_string(index));
                         }
                     }
                     else {
-                        DebugLog("DisplaySyncServer: Unknown command from client: \"" + line + "\"");
+                        DebugLog("DisplaySyncServer: Failed to parse SELECT command: \"" + plain + "\"");
                     }
+                }
+                else {
+                    DebugLog("DisplaySyncServer: Unknown command from client: \"" + plain + "\"");
                 }
             }
         }
 
+client_done:
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             if (m_impl && m_impl->clientSocket == clientSocket) {
                 closesocket(m_impl->clientSocket);
                 m_impl->clientSocket = INVALID_SOCKET;
+                hk_secureline::Clear(m_impl->session);
             }
         }
 
         closesocket(clientSocket);
     }
 
-    // Cleanup listen socket
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_impl && m_impl->listenSocket != INVALID_SOCKET) {

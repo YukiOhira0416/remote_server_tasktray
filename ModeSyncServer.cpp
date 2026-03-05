@@ -4,6 +4,7 @@
 #include "ModeSyncServer.h"
 #include "TaskTrayApp.h"
 #include "DebugLog.h"
+#include "SecureLineCrypto.h"
 
 #include <string>
 #include <sstream>
@@ -13,14 +14,27 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-// Internal implementation structure that holds socket handles and
-// buffering state.
+// Internal implementation structure that holds socket handles and buffering state.
 struct ModeSyncServer::Impl
 {
     SOCKET listenSocket = INVALID_SOCKET;
     SOCKET clientSocket = INVALID_SOCKET;
     std::string recvBuffer;
+    hk_secureline::Session session;
 };
+
+static bool SendAll(SOCKET sock, const char* data, int len)
+{
+    int sentTotal = 0;
+    while (sentTotal < len) {
+        int sent = send(sock, data + sentTotal, len - sentTotal, 0);
+        if (sent == SOCKET_ERROR || sent == 0) {
+            return false;
+        }
+        sentTotal += sent;
+    }
+    return true;
+}
 
 ModeSyncServer::ModeSyncServer(TaskTrayApp* owner)
     : m_impl(new Impl())
@@ -55,7 +69,7 @@ bool ModeSyncServer::Start(unsigned short port)
         return false;
     }
     catch (...) {
-        DebugLog("ModeSyncServer::Start: failed to create thread (unknown error).");
+        DebugLog("ModeSyncServer::Start: failed to create thread (unknown error)." );
         m_running.store(false);
         return false;
     }
@@ -67,7 +81,6 @@ void ModeSyncServer::Stop()
 {
     bool expected = true;
     if (!m_running.compare_exchange_strong(expected, false)) {
-        // Not running.
         return;
     }
 
@@ -84,6 +97,8 @@ void ModeSyncServer::Stop()
                 closesocket(m_impl->listenSocket);
                 m_impl->listenSocket = INVALID_SOCKET;
             }
+            m_impl->recvBuffer.clear();
+            hk_secureline::Clear(m_impl->session);
         }
     }
 
@@ -99,28 +114,31 @@ void ModeSyncServer::BroadcastCurrentMode(int mode)
         return;
     }
 
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_impl || m_impl->clientSocket == INVALID_SOCKET) {
+    SOCKET sock = INVALID_SOCKET;
+    hk_secureline::Session sessionCopy;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_impl || m_impl->clientSocket == INVALID_SOCKET) {
+            return;
+        }
+        sock = m_impl->clientSocket;
+        sessionCopy = m_impl->session;
+    }
+
+    if (!sessionCopy.active) {
         return;
     }
 
-    std::string line = "MODE " + std::to_string(mode) + "\n";
+    std::string plain = "MODE " + std::to_string(mode);
+    std::string sec;
+    if (!hk_secureline::EncryptLineToSec1(sessionCopy, plain, sec)) {
+        DebugLog("ModeSyncServer::BroadcastCurrentMode: EncryptLineToSec1 failed.");
+        return;
+    }
 
-    int totalSent = 0;
-    while (totalSent < static_cast<int>(line.size())) {
-        int sent = send(m_impl->clientSocket,
-                        line.data() + totalSent,
-                        static_cast<int>(line.size()) - totalSent,
-                        0);
-        if (sent == SOCKET_ERROR) {
-            int err = WSAGetLastError();
-            DebugLog("ModeSyncServer::BroadcastCurrentMode: send failed: " + std::to_string(err));
-            break;
-        }
-        if (sent == 0) {
-            break;
-        }
-        totalSent += sent;
+    if (!SendAll(sock, sec.data(), static_cast<int>(sec.size()))) {
+        int err = WSAGetLastError();
+        DebugLog("ModeSyncServer::BroadcastCurrentMode: send failed: " + std::to_string(err));
     }
 }
 
@@ -143,7 +161,6 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
         return;
     }
 
-    // Allow address reuse to make restart smoother.
     BOOL reuse = TRUE;
     setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR,
                reinterpret_cast<const char*>(&reuse), sizeof(reuse));
@@ -178,10 +195,11 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
             m_impl->listenSocket = listenSocket;
             m_impl->clientSocket = INVALID_SOCKET;
             m_impl->recvBuffer.clear();
+            hk_secureline::Clear(m_impl->session);
         }
     }
 
-    DebugLog("ModeSyncServer::ServerThreadProc: listening for connections.");
+    DebugLog("ModeSyncServer::ServerThreadProc: listening for connections." );
 
     while (m_running.load()) {
         fd_set readSet;
@@ -217,7 +235,6 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
             continue;
         }
         if (sel == 0) {
-            // timeout
             continue;
         }
 
@@ -232,7 +249,7 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
                 int err = WSAGetLastError();
                 DebugLog("ModeSyncServer::ServerThreadProc: accept() failed: " + std::to_string(err));
             } else {
-                DebugLog("ModeSyncServer::ServerThreadProc: client connected.");
+                DebugLog("ModeSyncServer::ServerThreadProc: client connected (starting secure handshake)." );
 
                 SOCKET oldClient = INVALID_SOCKET;
                 {
@@ -241,6 +258,7 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
                         oldClient = m_impl->clientSocket;
                         m_impl->clientSocket = newClient;
                         m_impl->recvBuffer.clear();
+                        hk_secureline::Clear(m_impl->session);
                     }
                 }
 
@@ -248,6 +266,34 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
                     shutdown(oldClient, SD_BOTH);
                     closesocket(oldClient);
                 }
+
+                // Handshake must be done before we send MODE.
+                std::string recvBuf;
+                hk_secureline::Session sess;
+                if (!hk_secureline::ServerHandshake(newClient, recvBuf, sess, 5000)) {
+                    DebugLog("ModeSyncServer: secure handshake failed; closing client." );
+                    shutdown(newClient, SD_BOTH);
+                    closesocket(newClient);
+                    {
+                        std::lock_guard<std::mutex> lock(m_mutex);
+                        if (m_impl && m_impl->clientSocket == newClient) {
+                            m_impl->clientSocket = INVALID_SOCKET;
+                            m_impl->recvBuffer.clear();
+                            hk_secureline::Clear(m_impl->session);
+                        }
+                    }
+                    continue;
+                }
+
+                {
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    if (m_impl && m_impl->clientSocket == newClient) {
+                        m_impl->session = sess;
+                        m_impl->recvBuffer = recvBuf;
+                    }
+                }
+
+                DebugLog("ModeSyncServer: secure handshake complete." );
 
                 // Send current mode to the new client.
                 if (m_owner) {
@@ -273,9 +319,10 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
                     closesocket(m_impl->clientSocket);
                     m_impl->clientSocket = INVALID_SOCKET;
                     m_impl->recvBuffer.clear();
+                    hk_secureline::Clear(m_impl->session);
                 }
             } else if (received == 0) {
-                DebugLog("ModeSyncServer::ServerThreadProc: client disconnected.");
+                DebugLog("ModeSyncServer::ServerThreadProc: client disconnected." );
 
                 std::lock_guard<std::mutex> lock(m_mutex);
                 if (m_impl && m_impl->clientSocket != INVALID_SOCKET) {
@@ -283,16 +330,19 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
                     closesocket(m_impl->clientSocket);
                     m_impl->clientSocket = INVALID_SOCKET;
                     m_impl->recvBuffer.clear();
+                    hk_secureline::Clear(m_impl->session);
                 }
             } else {
                 std::string chunk(buf, buf + received);
 
                 std::string combined;
+                hk_secureline::Session sess;
                 {
                     std::lock_guard<std::mutex> lock(m_mutex);
                     if (m_impl) {
                         m_impl->recvBuffer.append(chunk);
                         combined.swap(m_impl->recvBuffer);
+                        sess = m_impl->session;
                     }
                 }
 
@@ -300,7 +350,6 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
                 while (start < combined.size()) {
                     size_t pos = combined.find('\n', start);
                     if (pos == std::string::npos) {
-                        // Put back partial line for the next recv.
                         std::lock_guard<std::mutex> lock(m_mutex);
                         if (m_impl) {
                             m_impl->recvBuffer.assign(combined.substr(start));
@@ -311,18 +360,47 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
                     std::string line = combined.substr(start, pos - start);
                     start = pos + 1;
 
-                    // Trim CR if present.
                     if (!line.empty() && line.back() == '\r') {
                         line.pop_back();
                     }
+                    if (line.empty()) {
+                        continue;
+                    }
 
-                    ProcessLine(line);
+                    std::string plain;
+                    if (!hk_secureline::DecryptSec1ToLine(sess, line, plain)) {
+                        DebugLog("ModeSyncServer: invalid SEC1 line; closing client." );
+                        std::lock_guard<std::mutex> lock(m_mutex);
+                        if (m_impl && m_impl->clientSocket != INVALID_SOCKET) {
+                            shutdown(m_impl->clientSocket, SD_BOTH);
+                            closesocket(m_impl->clientSocket);
+                            m_impl->clientSocket = INVALID_SOCKET;
+                            m_impl->recvBuffer.clear();
+                            hk_secureline::Clear(m_impl->session);
+                        }
+                        break;
+                    }
+
+                    if (plain == "DISCONNECT") {
+                        DebugLog("ModeSyncServer: received DISCONNECT." );
+                        std::lock_guard<std::mutex> lock(m_mutex);
+                        if (m_impl && m_impl->clientSocket != INVALID_SOCKET) {
+                            shutdown(m_impl->clientSocket, SD_BOTH);
+                            closesocket(m_impl->clientSocket);
+                            m_impl->clientSocket = INVALID_SOCKET;
+                            m_impl->recvBuffer.clear();
+                            hk_secureline::Clear(m_impl->session);
+                        }
+                        break;
+                    }
+
+                    ProcessLine(plain);
                 }
             }
         }
     }
 
-    DebugLog("ModeSyncServer::ServerThreadProc: shutting down.");
+    DebugLog("ModeSyncServer::ServerThreadProc: shutting down." );
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -337,6 +415,8 @@ void ModeSyncServer::ServerThreadProc(unsigned short port)
                 closesocket(m_impl->listenSocket);
                 m_impl->listenSocket = INVALID_SOCKET;
             }
+            m_impl->recvBuffer.clear();
+            hk_secureline::Clear(m_impl->session);
         }
     }
 

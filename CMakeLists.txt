@@ -136,6 +136,8 @@ set(SOURCES
     OverlayManager.cpp
     DisplaySyncServer.cpp
     ModeSyncServer.cpp
+    SecureLineCrypto.cpp
+    DeviceKeyCrypto.cpp
 )
 
 # TaskTrayApp.cppファイルに対してAutoUICを無効化
@@ -156,6 +158,8 @@ set(HEADERS
     OverlayManager.h
     DisplaySyncServer.h
     ModeSyncServer.h
+    SecureLineCrypto.h
+    DeviceKeyCrypto.h
 )
 
 # リソースファイル
@@ -194,6 +198,10 @@ target_link_libraries(${PROJECT_NAME}
     Shcore
     Qt6::Widgets
     ws2_32
+    iphlpapi
+    crypt32
+    bcrypt
+    winhttp
 )
 
 # コンパイラ固有の設定
