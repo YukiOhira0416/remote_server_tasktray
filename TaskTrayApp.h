@@ -28,6 +28,7 @@ public:
     void UpdateOptimizedPlanFromUi(int plan);
     void UpdateOptimizedPlanFromNetwork(int plan);
     int  GetOptimizedPlanForSync() const;
+    bool IsActivatedForSync() const;
     void ShowControlPanel();
     bool RefreshDisplayList();
     bool Cleanup();
