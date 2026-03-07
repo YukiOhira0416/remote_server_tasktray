@@ -55,7 +55,19 @@ QTabBar::tab {
       <string notr="true">QPushButton {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
-	padding: 5px;
+	padding: 6px 12px;
+	border-radius: 6px;
+}
+
+QLineEdit {
+	border: 1px solid #9aa4b2;
+	border-radius: 6px;
+	padding: 4px;
+	background: white;
+}
+
+QLineEdit:focus {
+	border: 2px solid #1f6feb;
 }
 
 #label_00 {
@@ -88,6 +100,7 @@ QTabBar::tab {
 #label_05 {
 	font-family: &quot;Segoe UI&quot;;
 	font-size: 12px;
+	color: #5f6b7a;
 }
 
 #label_06 {
@@ -134,7 +147,7 @@ QTabBar::tab {
        <string>Server Name</string>
       </property>
      </widget>
-     <widget class="QTextEdit" name="textEdit_0">
+     <widget class="QLineEdit" name="textEdit_0">
       <property name="geometry">
        <rect>
         <x>40</x>
@@ -142,6 +155,12 @@ QTabBar::tab {
         <width>321</width>
         <height>41</height>
        </rect>
+      </property>
+      <property name="maxLength">
+       <number>20</number>
+      </property>
+      <property name="placeholderText">
+       <string>Enter Server Name</string>
       </property>
      </widget>
      <widget class="QPushButton" name="pushButton_0">
@@ -155,6 +174,19 @@ QTabBar::tab {
       </property>
       <property name="text">
        <string>Save</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_05">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>102</y>
+        <width>321</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Use 1-20 printable ASCII characters.</string>
       </property>
      </widget>
      <widget class="QLabel" name="label_01">
@@ -180,7 +212,7 @@ QTabBar::tab {
        <string>Activation</string>
       </property>
      </widget>
-     <widget class="QTextEdit" name="textEdit_1">
+     <widget class="QLineEdit" name="textEdit_1">
       <property name="geometry">
        <rect>
         <x>650</x>
@@ -188,6 +220,9 @@ QTabBar::tab {
         <width>541</width>
         <height>41</height>
        </rect>
+      </property>
+      <property name="placeholderText">
+       <string>Account email</string>
       </property>
      </widget>
      <widget class="QLabel" name="label_02">
@@ -229,7 +264,7 @@ QTabBar::tab {
        <string>Activation Code</string>
       </property>
      </widget>
-     <widget class="QTextEdit" name="textEdit_2">
+     <widget class="QLineEdit" name="textEdit_2">
       <property name="geometry">
        <rect>
         <x>649</x>
@@ -238,8 +273,14 @@ QTabBar::tab {
         <height>41</height>
        </rect>
       </property>
+      <property name="echoMode">
+       <enum>QLineEdit::Password</enum>
+      </property>
+      <property name="placeholderText">
+       <string>Password</string>
+      </property>
      </widget>
-     <widget class="QTextEdit" name="textEdit_3">
+     <widget class="QLineEdit" name="textEdit_3">
       <property name="geometry">
        <rect>
         <x>650</x>
@@ -248,31 +289,8 @@ QTabBar::tab {
         <height>41</height>
        </rect>
       </property>
-     </widget>
-     <widget class="QLabel" name="label_06">
-      <property name="geometry">
-       <rect>
-        <x>700</x>
-        <y>29</y>
-        <width>71</width>
-        <height>21</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Unactivated</string>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_07">
-      <property name="geometry">
-       <rect>
-        <x>800</x>
-        <y>30</y>
-        <width>141</width>
-        <height>21</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Expaired On 31/08/20XX</string>
+      <property name="placeholderText">
+       <string>Activation Code</string>
       </property>
      </widget>
      <widget class="QPushButton" name="pushButton_1">
@@ -285,7 +303,33 @@ QTabBar::tab {
        </rect>
       </property>
       <property name="text">
-       <string>Activete</string>
+       <string>Activate</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_06">
+      <property name="geometry">
+       <rect>
+        <x>690</x>
+        <y>28</y>
+        <width>110</width>
+        <height>24</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Not activated</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_07">
+      <property name="geometry">
+       <rect>
+        <x>810</x>
+        <y>28</y>
+        <width>250</width>
+        <height>24</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string/>
       </property>
      </widget>
     </widget>
@@ -305,6 +349,20 @@ QGroupBox::title {
 
 QPushButton {
 	padding: 5px;
+	border-radius: 6px;
+	font-weight: 600;
+}
+
+#pushButton_2 {
+	background-color: #7c3aed;
+	color: white;
+	border: 1px solid #5b21b6;
+	padding: 6px 12px;
+}
+
+#pushButton_2:disabled {
+	background-color: #b7a4e6;
+	color: #f7f2ff;
 }
 
 #label_10 {

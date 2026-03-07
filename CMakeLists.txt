@@ -75,6 +75,8 @@ set_property(SOURCE TaskTrayApp.cpp PROPERTY SKIP_AUTOUIC ON)
 # C++17 標準を使用
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # UIファイルを処理
 set(UI_FILES
@@ -133,11 +135,15 @@ set(SOURCES
     SharedMemoryHelper.cpp
     StringConversion.cpp
     Utility.cpp
-    OverlayManager.cpp
     DisplaySyncServer.cpp
     ModeSyncServer.cpp
     SecureLineCrypto.cpp
     DeviceKeyCrypto.cpp
+
+    # Device refresh request signing (Ed25519)
+    DeviceSignKey.cpp
+    hk_randombytes_win.cpp
+    hk_tweetnacl_sign.c
 )
 
 # TaskTrayApp.cppファイルに対してAutoUICを無効化
@@ -155,11 +161,14 @@ set(HEADERS
     framework.h
     targetver.h
     Resource.h
-    OverlayManager.h
     DisplaySyncServer.h
     ModeSyncServer.h
     SecureLineCrypto.h
     DeviceKeyCrypto.h
+
+    # Device refresh request signing (Ed25519)
+    DeviceSignKey.h
+    hk_tweetnacl_sign.h
 )
 
 # リソースファイル

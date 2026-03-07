@@ -14,6 +14,7 @@ class DisplaySyncServer;
 class ModeSyncServer;
 class TaskTrayApp {
 public:
+    friend LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     TaskTrayApp(HINSTANCE hInstance);
     bool Initialize();
     int Run();
@@ -42,6 +43,10 @@ private:
     void StopActivationPollThread();
     void ActivationPollThreadProc();
 
+    void StartServicePolicyThread();
+    void StopServicePolicyThread();
+    void ServicePolicyThreadProc();
+
     HINSTANCE hInstance;
     HWND hwnd;
     NOTIFYICONDATA nid;
@@ -56,6 +61,11 @@ private:
     std::atomic<bool> activationPollRunning{ false };
     std::mutex activationPollMutex;
     std::condition_variable activationPollCv;
+
+    std::thread servicePolicyThread;
+    std::atomic<bool> servicePolicyRunning{ false };
+    std::mutex servicePolicyMutex;
+    std::condition_variable servicePolicyCv;
 };
 
 #endif // TASKTRAYAPP_H

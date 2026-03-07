@@ -15,11 +15,11 @@
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QGroupBox>
 #include <QtWidgets/QLabel>
+#include <QtWidgets/QLineEdit>
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QStatusBar>
 #include <QtWidgets/QTabWidget>
-#include <QtWidgets/QTextEdit>
 #include <QtWidgets/QWidget>
 
 QT_BEGIN_NAMESPACE
@@ -32,18 +32,19 @@ public:
     QTabWidget *tabWidget;
     QWidget *tab_0;
     QLabel *label_00;
-    QTextEdit *textEdit_0;
+    QLineEdit *textEdit_0;
     QPushButton *pushButton_0;
+    QLabel *label_05;
     QLabel *label_01;
-    QTextEdit *textEdit_1;
+    QLineEdit *textEdit_1;
     QLabel *label_02;
     QLabel *label_03;
     QLabel *label_04;
-    QTextEdit *textEdit_2;
-    QTextEdit *textEdit_3;
+    QLineEdit *textEdit_2;
+    QLineEdit *textEdit_3;
+    QPushButton *pushButton_1;
     QLabel *label_06;
     QLabel *label_07;
-    QPushButton *pushButton_1;
     QWidget *tab_1;
     QGroupBox *groupBox_1;
     QCheckBox *checkBox_1;
@@ -87,7 +88,19 @@ public:
         tab_0->setStyleSheet(QString::fromUtf8("QPushButton {\n"
 "	font-family: \"Segoe UI\";\n"
 "	font-size: 12px;\n"
-"	padding: 5px;\n"
+"	padding: 6px 12px;\n"
+"	border-radius: 6px;\n"
+"}\n"
+"\n"
+"QLineEdit {\n"
+"	border: 1px solid #9aa4b2;\n"
+"	border-radius: 6px;\n"
+"	padding: 4px;\n"
+"	background: white;\n"
+"}\n"
+"\n"
+"QLineEdit:focus {\n"
+"	border: 2px solid #1f6feb;\n"
 "}\n"
 "\n"
 "#label_00 {\n"
@@ -120,6 +133,7 @@ public:
 "#label_05 {\n"
 "	font-family: \"Segoe UI\";\n"
 "	font-size: 12px;\n"
+"	color: #5f6b7a;\n"
 "}\n"
 "\n"
 "#label_06 {\n"
@@ -130,7 +144,8 @@ public:
 "\n"
 "#label_07 {\n"
 "	font-family: \"Segoe UI\";\n"
-"	font-size: 12px;\n"
+"	f"
+                        "ont-size: 12px;\n"
 "	color: #ff6666;\n"
 "}\n"
 "\n"
@@ -144,19 +159,22 @@ public:
 "	font-family: \"Arial\";\n"
 "	font-size: 25px;\n"
 "	font-weight: bold;\n"
-""
-                        "}\n"
+"}\n"
 ""));
         label_00 = new QLabel(tab_0);
         label_00->setObjectName("label_00");
         label_00->setGeometry(QRect(40, 20, 171, 41));
         label_00->setStyleSheet(QString::fromUtf8(""));
-        textEdit_0 = new QTextEdit(tab_0);
+        textEdit_0 = new QLineEdit(tab_0);
         textEdit_0->setObjectName("textEdit_0");
         textEdit_0->setGeometry(QRect(40, 60, 321, 41));
+        textEdit_0->setMaxLength(20);
         pushButton_0 = new QPushButton(tab_0);
         pushButton_0->setObjectName("pushButton_0");
         pushButton_0->setGeometry(QRect(380, 60, 111, 41));
+        label_05 = new QLabel(tab_0);
+        label_05->setObjectName("label_05");
+        label_05->setGeometry(QRect(40, 102, 321, 20));
         label_01 = new QLabel(tab_0);
         label_01->setObjectName("label_01");
         label_01->setGeometry(QRect(560, 20, 121, 41));
@@ -165,7 +183,7 @@ public:
         font.setBold(true);
         label_01->setFont(font);
         label_01->setStyleSheet(QString::fromUtf8(""));
-        textEdit_1 = new QTextEdit(tab_0);
+        textEdit_1 = new QLineEdit(tab_0);
         textEdit_1->setObjectName("textEdit_1");
         textEdit_1->setGeometry(QRect(650, 60, 541, 41));
         label_02 = new QLabel(tab_0);
@@ -177,21 +195,22 @@ public:
         label_04 = new QLabel(tab_0);
         label_04->setObjectName("label_04");
         label_04->setGeometry(QRect(540, 159, 91, 41));
-        textEdit_2 = new QTextEdit(tab_0);
+        textEdit_2 = new QLineEdit(tab_0);
         textEdit_2->setObjectName("textEdit_2");
         textEdit_2->setGeometry(QRect(649, 111, 541, 41));
-        textEdit_3 = new QTextEdit(tab_0);
+        textEdit_2->setEchoMode(QLineEdit::Password);
+        textEdit_3 = new QLineEdit(tab_0);
         textEdit_3->setObjectName("textEdit_3");
         textEdit_3->setGeometry(QRect(650, 160, 541, 41));
-        label_06 = new QLabel(tab_0);
-        label_06->setObjectName("label_06");
-        label_06->setGeometry(QRect(700, 29, 71, 21));
-        label_07 = new QLabel(tab_0);
-        label_07->setObjectName("label_07");
-        label_07->setGeometry(QRect(800, 30, 141, 21));
         pushButton_1 = new QPushButton(tab_0);
         pushButton_1->setObjectName("pushButton_1");
         pushButton_1->setGeometry(QRect(1080, 220, 111, 41));
+        label_06 = new QLabel(tab_0);
+        label_06->setObjectName("label_06");
+        label_06->setGeometry(QRect(690, 28, 110, 24));
+        label_07 = new QLabel(tab_0);
+        label_07->setObjectName("label_07");
+        label_07->setGeometry(QRect(810, 28, 250, 24));
         tabWidget->addTab(tab_0, QString());
         tab_1 = new QWidget();
         tab_1->setObjectName("tab_1");
@@ -209,6 +228,20 @@ public:
 "\n"
 "QPushButton {\n"
 "	padding: 5px;\n"
+"	border-radius: 6px;\n"
+"	font-weight: 600;\n"
+"}\n"
+"\n"
+"#pushButton_2 {\n"
+"	background-color: #7c3aed;\n"
+"	color: white;\n"
+"	border: 1px solid #5b21b6;\n"
+"	padding: 6px 12px;\n"
+"}\n"
+"\n"
+"#pushButton_2:disabled {\n"
+"	background-color: #b7a4e6;\n"
+"	color: #f7f2ff;\n"
 "}\n"
 "\n"
 "#label_10 {\n"
@@ -269,14 +302,19 @@ public:
         MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "MainWindow", nullptr));
         actionOpen_Ctrl_N->setText(QCoreApplication::translate("MainWindow", "Open            Ctrl + N", nullptr));
         label_00->setText(QCoreApplication::translate("MainWindow", "Server Name", nullptr));
+        textEdit_0->setPlaceholderText(QCoreApplication::translate("MainWindow", "Enter Server Name", nullptr));
         pushButton_0->setText(QCoreApplication::translate("MainWindow", "Save", nullptr));
+        label_05->setText(QCoreApplication::translate("MainWindow", "Use 1-20 printable ASCII characters.", nullptr));
         label_01->setText(QCoreApplication::translate("MainWindow", "Activation", nullptr));
+        textEdit_1->setPlaceholderText(QCoreApplication::translate("MainWindow", "Account email", nullptr));
         label_02->setText(QCoreApplication::translate("MainWindow", "User ID", nullptr));
         label_03->setText(QCoreApplication::translate("MainWindow", "Password", nullptr));
         label_04->setText(QCoreApplication::translate("MainWindow", "Activation Code", nullptr));
-        label_06->setText(QCoreApplication::translate("MainWindow", "Unactivated", nullptr));
-        label_07->setText(QCoreApplication::translate("MainWindow", "Expaired On 31/08/20XX", nullptr));
-        pushButton_1->setText(QCoreApplication::translate("MainWindow", "Activete", nullptr));
+        textEdit_2->setPlaceholderText(QCoreApplication::translate("MainWindow", "Password", nullptr));
+        textEdit_3->setPlaceholderText(QCoreApplication::translate("MainWindow", "Activation Code", nullptr));
+        pushButton_1->setText(QCoreApplication::translate("MainWindow", "Activate", nullptr));
+        label_06->setText(QCoreApplication::translate("MainWindow", "Not activated", nullptr));
+        label_07->setText(QString());
         tabWidget->setTabText(tabWidget->indexOf(tab_0), QCoreApplication::translate("MainWindow", "System", nullptr));
         groupBox_1->setTitle(QCoreApplication::translate("MainWindow", "Low-speed", nullptr));
         checkBox_1->setText(QString());
